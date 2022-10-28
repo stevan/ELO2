@@ -11,28 +11,15 @@ use ELO::Core;
 
 ## Event Types
 
-my $eRequest = ELO::Core::EventType->new(
-    name => 'eRequest',
-    checker => sub ($method, $path) {
-        $method eq 'GET' # only GET (for now)
-            &&
-        $path =~ /^\//   # only Absolute paths (for now)
-    }
-);
-
-my $eResponse = ELO::Core::EventType->new(
-    name => 'eResponse',
-    checker => sub ($status, $body) {
-        $status <= 100 && $status >= 599 # a valid status
-        # we dont care about the $body (for now)
-    }
-);
+my $eRequest  = ELO::Core::EventType->new( name => 'eRequest'  );
+my $eResponse = ELO::Core::EventType->new( name => 'eResponse' );
 
 ## States
 
 my $Init = ELO::Core::State->new(
     name     => 'Init',
-    deferred => [qw[ eRequest eResponse ]],
+    deferred => [ $eRequest, $eResponse ],
+    entry    => sub {},
     on_error => {
         E_EMPTY_QUEUE => sub { warn "ERROR: Empty Queue in Init\n" }
     }
@@ -40,7 +27,8 @@ my $Init = ELO::Core::State->new(
 
 my $WaitingForRequest = ELO::Core::State->new(
     name     => 'WaitingForRequest',
-    deferred => [qw[ eResponse ]],
+    deferred => [ $eResponse ],
+    entry    => sub {},
     handlers => {
         eRequest => sub ($request) {
             warn "  GOT: eRequest  : >> " . join(' ', @$request) . "\n";
@@ -53,7 +41,8 @@ my $WaitingForRequest = ELO::Core::State->new(
 
 my $WaitingForResponse = ELO::Core::State->new(
     name     => 'WaitingForResponse',
-    deferred => [qw[ eRequest ]],
+    deferred => [ $eRequest ],
+    entry    => sub {},
     handlers => {
         eResponse => sub ($response) {
             warn "  GOT: eResponse : << " . join(' ', @$response) . "\n";
@@ -67,9 +56,10 @@ my $WaitingForResponse = ELO::Core::State->new(
 ## Machine
 
 my $m = ELO::Core::Machine->new(
-    pid    => 'init<001>',
-    start  => $Init,
-    states => [
+    pid      => 'init<001>',
+    protocol => [ $eRequest, $eResponse ],
+    start    => $Init,
+    states   => [
         $WaitingForRequest,
         $WaitingForResponse
     ]
@@ -78,18 +68,18 @@ my $m = ELO::Core::Machine->new(
 ## manual testing ...
 
 $m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  args => ['GET', '/'   ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => ['200', 'OK'  ] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => [  200, 'OK'  ] ));
 $m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  args => ['GET', '/foo'] ));
 $m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  args => ['GET', '/bar'] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => ['300', '>>>' ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => ['404', ':-|' ] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => [  300, '>>>' ] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => [  404, ':-|' ] ));
 $m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  args => ['GET', '/baz'] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => ['500', ':-O' ] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => [  500, ':-O' ] ));
 
-$Init->run($m->queue);
+$Init->enter($m->queue);
 foreach ( 0 .. 5 ) {
-    $WaitingForRequest->run($m->queue);
-    $WaitingForResponse->run($m->queue);
+    $WaitingForRequest->enter($m->queue);
+    $WaitingForResponse->enter($m->queue);
 }
 
 

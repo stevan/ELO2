@@ -21,12 +21,13 @@ __END__
 
 =pod
 
+A protocol is a set of EventTypes and ErrorTypes that a given machine understands
+
 A Loop has many Machine instances
+A Loop has a protocol and a Message queue
 
 Each Machine instance has a PID address
 Each Machine instance has an Event queue
-
-Loop has a protocol and a Message queue
 
 When a loop begins
     messages are processed

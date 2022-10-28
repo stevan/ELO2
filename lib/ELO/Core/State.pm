@@ -12,25 +12,19 @@ use constant DEBUG => $ENV{DEBUG} // 0;
 use parent 'UNIVERSAL::Object';
 use slots (
     name     => sub {},
+    entry    => sub {},
     handlers => sub { +{} }, # Hash<Type, &>
     deferred => sub { +[] }, # Array<Type>
     on_error => sub { +{} }, # Hash<Error, &>
 );
 
-sub ENTER ($self, $q) {
+sub enter ($self, $q) {
+
+    $self->{entry}->( $self, $q );
+
     foreach my $type ($self->{deferred}->@*) {
         $q->defer($type);
     }
-}
-
-sub LEAVE ($self, $q) {
-    foreach my $type ($self->{deferred}->@*) {
-        $q->resume($type);
-    }
-}
-
-sub run ($self, $q) {
-    $self->ENTER($q);
 
     my $e = $q->dequeue( keys $self->{handlers}->%* );
 
@@ -43,7 +37,9 @@ sub run ($self, $q) {
         $self->{handlers}->{ $e->type->name }->( $e->args );
     }
 
-    $self->LEAVE($q);
+    foreach my $type ($self->{deferred}->@*) {
+        $q->resume($type);
+    }
 }
 
 

@@ -22,15 +22,15 @@ use slots (
 );
 
 sub is_deferred ($self, $type) {
-    !! exists $self->{_deferred}->{$type};
+    !! exists $self->{_deferred}->{$type->name};
 }
 
 sub defer ($self, $type) {
-    $self->{_deferred}->{$type}++;
+    $self->{_deferred}->{$type->name}++;
 }
 
 sub resume ($self, $type) {
-    delete $self->{_deferred}->{$type};
+    delete $self->{_deferred}->{$type->name};
 }
 
 sub enqueue ($self, $e) {
@@ -50,18 +50,13 @@ DEQUEUE:
     ) unless defined $e;
 
     # FIXME - this can be a real loop, no need for GOTO
-    if ( $self->is_deferred( $e->type->name ) ) {
+    if ( $self->is_deferred( $e->type ) ) {
         $idx++;
         goto DEQUEUE;
     }
 
     if ( grep $e->type->name eq $_, @types ) {
         # FIXME - use splice
-        warn Dumper [
-            [ $idx, scalar $self->{inbox}->@* ],
-            [ 0 .. $idx-1 ],
-            [ $idx+1 .. (scalar($self->{inbox}->@*) - 1 ) ],
-        ] if DEBUG;
         $self->{inbox} = [
             $self->{inbox}->@[
                 0 .. $idx-1
