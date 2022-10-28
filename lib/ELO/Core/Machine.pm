@@ -9,13 +9,19 @@ use ELO::Core::Queue;
 
 use parent 'UNIVERSAL::Object::Immutable';
 use slots (
+    pid    => sub {},
     states => sub { +[] },
-    queue  => sub {}
+    queue  => sub {},
 );
 
 sub BUILD ($self, $) {
     $self->{queue} = ELO::Core::Queue->new;
 }
+
+sub pid ($self) { $self->{pid} }
+
+sub states ($self) { $self->{states} }
+sub queue  ($self) { $self->{queue}  }
 
 1;
 

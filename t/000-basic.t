@@ -7,14 +7,9 @@ use experimental 'signatures', 'postderef';
 use Data::Dumper;
 use Test::More;
 
-use ELO::Core::Error;
-use ELO::Core::Event;
-use ELO::Core::Queue;
-use ELO::Core::State;
+use ELO::Core;
 
-my $q = ELO::Core::Queue->new;
-
-my $Init = ELO::Core::State->new(
+my $Init = ELO::Core::State->new(d
     name     => 'Init',
     deferred => [qw[ eRequest eResponse ]],
     on_error => {
@@ -48,19 +43,21 @@ my $WaitingForResponse = ELO::Core::State->new(
     }
 );
 
-$q->enqueue(ELO::Core::Event->new( type => 'eRequest', args => ['GET /'] ));
-$q->enqueue(ELO::Core::Event->new( type => 'eResponse', args => ['200 OK'] ));
-$q->enqueue(ELO::Core::Event->new( type => 'eRequest', args => ['GET /foo'] ));
-$q->enqueue(ELO::Core::Event->new( type => 'eRequest', args => ['GET /bar'] ));
-$q->enqueue(ELO::Core::Event->new( type => 'eResponse', args => ['300 >>>'] ));
-$q->enqueue(ELO::Core::Event->new( type => 'eResponse', args => ['404 :-|'] ));
-$q->enqueue(ELO::Core::Event->new( type => 'eRequest', args => ['GET /baz'] ));
-$q->enqueue(ELO::Core::Event->new( type => 'eResponse', args => ['500 :-O'] ));
+my $m = ELO::Core::Machine->new;
 
-$Init->run($q);
+$m->queue->enqueue(ELO::Core::Event->new( type => 'eRequest', args => ['GET /'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => 'eResponse', args => ['200 OK'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => 'eRequest', args => ['GET /foo'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => 'eRequest', args => ['GET /bar'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => 'eResponse', args => ['300 >>>'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => 'eResponse', args => ['404 :-|'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => 'eRequest', args => ['GET /baz'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => 'eResponse', args => ['500 :-O'] ));
+
+$Init->run($m->queue);
 foreach ( 0 .. 5 ) {
-    $WaitingForRequest->run($q);
-    $WaitingForResponse->run($q);
+    $WaitingForRequest->run($m->queue);
+    $WaitingForResponse->run($m->queue);
 }
 
 
