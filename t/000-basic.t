@@ -9,6 +9,8 @@ use Test::More;
 
 use ELO::Core;
 
+## Event Types
+
 my $eRequest = ELO::Core::EventType->new(
     name => 'eRequest',
     checker => sub ($method, $path) {
@@ -20,10 +22,13 @@ my $eRequest = ELO::Core::EventType->new(
 
 my $eResponse = ELO::Core::EventType->new(
     name => 'eResponse',
-    checker => sub ($status, $) {
-        $status <= 100 && $status >= 599
+    checker => sub ($status, $body) {
+        $status <= 100 && $status >= 599 # a valid status
+        # we dont care about the $body (for now)
     }
 );
+
+## States
 
 my $Init = ELO::Core::State->new(
     name     => 'Init',
@@ -59,6 +64,8 @@ my $WaitingForResponse = ELO::Core::State->new(
     }
 );
 
+## Machine
+
 my $m = ELO::Core::Machine->new(
     pid    => 'init<001>',
     start  => $Init,
@@ -67,6 +74,8 @@ my $m = ELO::Core::Machine->new(
         $WaitingForResponse
     ]
 );
+
+## manual testing ...
 
 $m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  args => ['GET', '/'   ] ));
 $m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => ['200', 'OK'  ] ));

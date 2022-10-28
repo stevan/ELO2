@@ -34,4 +34,14 @@ When a loop begins
             these trigger handlers in the Machine State
 
 
+Each state in the P state machine has an entry function associated with
+it which gets executed when the state machine enters that state.
+
+After executing the entry function, the machine tries to dequeue an event
+from the input buffer or blocks if the buffer is empty.
+
+Upon dequeuing an event from the input queue of the machine, the attached
+handler is executed which might transition the machine to a different state.
+
+
 =cut
