@@ -9,7 +9,7 @@ use Test::More;
 
 use ELO::Core;
 
-my $Init = ELO::Core::State->new(d
+my $Init = ELO::Core::State->new(
     name     => 'Init',
     deferred => [qw[ eRequest eResponse ]],
     on_error => {
@@ -43,7 +43,14 @@ my $WaitingForResponse = ELO::Core::State->new(
     }
 );
 
-my $m = ELO::Core::Machine->new;
+my $m = ELO::Core::Machine->new(
+    pid    => 'init<001>',
+    states => [
+        $Init,
+        $WaitingForRequest,
+        $WaitingForResponse
+    ]
+);
 
 $m->queue->enqueue(ELO::Core::Event->new( type => 'eRequest', args => ['GET /'] ));
 $m->queue->enqueue(ELO::Core::Event->new( type => 'eResponse', args => ['200 OK'] ));
