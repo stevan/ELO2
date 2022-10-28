@@ -8,6 +8,10 @@ use Carp 'confess';
 use Data::Dumper;
 
 use ELO::Core::Error;
+use ELO::Core::ErrorType;
+
+my $E_EMPTY_QUEUE   = ELO::Core::ErrorType->new( name => 'E_EMPTY_QUEUE'   );
+my $E_TYPE_MISMATCH = ELO::Core::ErrorType->new( name => 'E_TYPE_MISMATCH' );
 
 use constant DEBUG => $ENV{DEBUG} // 0;
 
@@ -41,17 +45,17 @@ DEQUEUE:
     my $e = $self->{inbox}->[ $idx ];
 
     return ELO::Core::Error->new(
-        type => 'E_EMPTY_QUEUE',
+        type => $E_EMPTY_QUEUE,
         args => [{ for_types => \@types }]
     ) unless defined $e;
 
     # FIXME - this can be a real loop, no need for GOTO
-    if ( $self->is_deferred( $e->type ) ) {
+    if ( $self->is_deferred( $e->type->name ) ) {
         $idx++;
         goto DEQUEUE;
     }
 
-    if ( grep $e->type eq $_, @types ) {
+    if ( grep $e->type->name eq $_, @types ) {
         # FIXME - use splice
         warn Dumper [
             [ $idx, scalar $self->{inbox}->@* ],
@@ -70,7 +74,7 @@ DEQUEUE:
     }
     else {
         return ELO::Core::Error->new(
-            type => 'E_TYPE_MISMATCH',
+            type => $E_TYPE_MISMATCH,
             args => [ { found => $e->type, wanted => \@types } ]
         );
     }

@@ -2,7 +2,10 @@ package ELO::Core;
 use v5.24;
 use warnings;
 
+use ELO::Core::EventType;
 use ELO::Core::Event;
+
+use ELO::Core::ErrorType;
 use ELO::Core::Error;
 
 use ELO::Core::Machine;

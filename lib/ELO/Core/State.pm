@@ -35,12 +35,12 @@ sub run ($self, $q) {
     my $e = $q->dequeue( keys $self->{handlers}->%* );
 
     if ( $e->isa('ELO::Core::Error') ) {
-        my $catch = $self->{on_error}->{ $e->type };
+        my $catch = $self->{on_error}->{ $e->type->name };
         $catch ||= sub { die Dumper [ WTF => $e ] };
         $catch->( $e );
     }
     else {
-        $self->{handlers}->{ $e->type }->( $e->args );
+        $self->{handlers}->{ $e->type->name }->( $e->args );
     }
 
     $self->LEAVE($q);
