@@ -4,11 +4,7 @@ use warnings;
 use experimental 'signatures', 'postderef';
 
 use parent 'ELO::Core::Event';
-use slots (
-    code => sub {},
-);
-
-sub code ($self) { $self->{code} }
+use slots;
 
 1;
 

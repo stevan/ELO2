@@ -67,14 +67,14 @@ my $m = ELO::Core::Machine->new(
 
 ## manual testing ...
 
-$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  args => ['GET', '/'   ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => [  200, 'OK'  ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  args => ['GET', '/foo'] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  args => ['GET', '/bar'] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => [  300, '>>>' ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => [  404, ':-|' ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  args => ['GET', '/baz'] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, args => [  500, ':-O' ] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/'   ] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  200, 'OK'  ] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/foo'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/bar'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  300, '>>>' ] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  404, ':-|' ] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/baz'] ));
+$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  500, ':-O' ] ));
 
 $Init->enter($m->queue);
 foreach ( 0 .. 5 ) {

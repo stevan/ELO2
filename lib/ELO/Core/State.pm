@@ -13,20 +13,16 @@ use parent 'UNIVERSAL::Object';
 use slots (
     name     => sub {},
     entry    => sub {},
-    handlers => sub { +{} }, # Hash<Type, &>
-    deferred => sub { +[] }, # Array<Type>
-    on_error => sub { +{} }, # Hash<Error, &>
+    handlers => sub { +{} }, # Hash<EventType, &>
+    deferred => sub { +[] }, # Array<EventType>
+    on_error => sub { +{} }, # Hash<ErrorType, &>
 );
 
 sub enter ($self, $q) {
 
     $self->{entry}->( $self, $q );
 
-    foreach my $type ($self->{deferred}->@*) {
-        $q->defer($type);
-    }
-
-    my $e = $q->dequeue( keys $self->{handlers}->%* );
+    my $e = $q->dequeue( $self->{deferred}->@* );
 
     if ( $e->isa('ELO::Core::Error') ) {
         my $catch = $self->{on_error}->{ $e->type->name };
@@ -34,11 +30,7 @@ sub enter ($self, $q) {
         $catch->( $e );
     }
     else {
-        $self->{handlers}->{ $e->type->name }->( $e->args );
-    }
-
-    foreach my $type ($self->{deferred}->@*) {
-        $q->resume($type);
+        $self->{handlers}->{ $e->type->name }->( $e->payload );
     }
 }
 

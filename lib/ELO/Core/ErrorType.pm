@@ -3,8 +3,6 @@ use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
 
-use Data::Dumper;
-
 use parent 'ELO::Core::EventType';
 use slots;
 
