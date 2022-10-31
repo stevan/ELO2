@@ -21,15 +21,14 @@ my ($Init, $WaitingForRequest, $WaitingForResponse);
 $Init = ELO::Core::State->new(
     name     => 'Init',
     deferred => [ $eRequest, $eResponse ],
-    entry    => sub { return $WaitingForRequest },
+    entry    => sub ($self, $m) { return $WaitingForRequest },
 );
 
 $WaitingForRequest = ELO::Core::State->new(
     name     => 'WaitingForRequest',
     deferred => [ $eResponse ],
-    entry    => sub {},
     handlers => {
-        eRequest => sub ($request) {
+        eRequest => sub ($self, $m, $request) {
             warn "  GOT: eRequest  : >> " . join(' ', @$request) . "\n";
             return $WaitingForResponse;
         }
@@ -39,9 +38,8 @@ $WaitingForRequest = ELO::Core::State->new(
 $WaitingForResponse = ELO::Core::State->new(
     name     => 'WaitingForResponse',
     deferred => [ $eRequest ],
-    entry    => sub {},
     handlers => {
-        eResponse => sub ($response) {
+        eResponse => sub ($self, $m, $response) {
             warn "  GOT: eResponse : << " . join(' ', @$response) . "\n";
             return $WaitingForRequest;
         }
@@ -50,7 +48,7 @@ $WaitingForResponse = ELO::Core::State->new(
 
 ## Machine
 
-my $m = ELO::Core::Machine->new(
+my $M = ELO::Core::Machine->new(
     pid      => 'init<001>',
     protocol => [ $eRequest, $eResponse ],
     start    => $Init,
@@ -62,22 +60,22 @@ my $m = ELO::Core::Machine->new(
 
 ## manual testing ...
 
-$m->START;
+$M->START;
 
-$m->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/'   ] ));
-$m->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  200, 'OK  .oO( ~ )'  ] ));
-$m->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/foo'] ));
-$m->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/bar'] ));
-$m->RUN;
+$M->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/'   ] ));
+$M->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  200, 'OK  .oO( ~ )'  ] ));
+$M->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/foo'] ));
+$M->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/bar'] ));
+$M->RUN;
 
 
-$m->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  300, '>>> .oO(foo)' ] ));
-$m->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/baz'] ));
-$m->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  404, ':-| .oO(bar)' ] ));
-$m->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  500, ':-O .oO(baz)' ] ));
-$m->RUN;
+$M->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  300, '>>> .oO(foo)' ] ));
+$M->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/baz'] ));
+$M->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  404, ':-| .oO(bar)' ] ));
+$M->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  500, ':-O .oO(baz)' ] ));
+$M->RUN;
 
-$m->STOP;
+$M->STOP;
 
 
 done_testing;

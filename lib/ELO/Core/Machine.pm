@@ -18,23 +18,30 @@ use slots (
     states   => sub { +[] },
     queue    => sub {},
     active   => sub {},
-    state    => sub {},
+    status   => sub {},
 );
 
 sub BUILD ($self, $) {
-    $self->{state} = STOPPED;
+    $self->{status} = STOPPED;
     $self->{queue} = ELO::Core::Queue->new;
 }
 
-sub pid      ($self) { $self->{pid} }
-
+sub pid      ($self) { $self->{pid}      }
 sub protocol ($self) { $self->{protocol} }
+
+# states
 
 sub start    ($self) { $self->{start}  }
 sub states   ($self) { $self->{states} }
 
-sub is_running ($self) { $self->{state} == RUNNING }
-sub is_stopped ($self) { $self->{state} == STOPPED }
+sub all_states ($self) { ($self->{start}, $self->{states}->@*) }
+
+# status
+
+sub is_running ($self) { $self->{status} == RUNNING }
+sub is_stopped ($self) { $self->{status} == STOPPED }
+
+# queue
 
 sub queue ($self) { $self->{queue} }
 
@@ -46,21 +53,21 @@ sub dequeue_event ($self) {
     $self->{queue}->dequeue( $self->{active}->deferred->@* )
 }
 
-sub START ($self) {
+## controls
 
-    my $q = $self->queue;
+sub START ($self) {
 
     my $start = $self->start;
 
-    my $goto = $start->ENTER($q);
+    my $goto = $start->ENTER($self);
     # if we are going to another state,
     if ($goto) {
         # TODO : make sure this is a member of {states}
 
         # exit this one ...
-        $start->EXIT($q);
+        $start->EXIT($self);
         # and enter the next one ...
-        $goto->ENTER($q);
+        $goto->ENTER($self);
     }
     else {
         # but if we are not going to
@@ -71,7 +78,7 @@ sub START ($self) {
 
     $self->{active} = $goto;
 
-    $self->{state} = RUNNING;
+    $self->{status} = RUNNING;
 
     return $self;
 }
@@ -79,11 +86,11 @@ sub START ($self) {
 sub STOP ($self) {
 
     if ( $self->{active} ) {
-        $self->{active}->EXIT($self->queue);
+        $self->{active}->EXIT($self);
         $self->{active} = undef;
     }
 
-    $self->{state} = STOPPED;
+    $self->{status} = STOPPED;
 
     $self;
 }
@@ -97,12 +104,12 @@ sub RUN ($self) {
 
         last unless defined $e;
 
-        my $next = $self->{active}->TICK($e);
+        my $next = $self->{active}->TICK($self, $e);
         if ($next) {
             # exit his one
-            $self->{active}->EXIT($q);
+            $self->{active}->EXIT($self);
             # if we move to a new state ...
-            $next->ENTER($q);
+            $next->ENTER($self);
             $self->{active} = $next;
         }
 

@@ -15,7 +15,7 @@ use constant DEBUG => $ENV{DEBUG} // 0;
 use parent 'UNIVERSAL::Object';
 use slots (
     name     => sub {},
-    state    => sub {},
+    status   => sub {},
     entry    => sub {},
     exit     => sub {},
     handlers => sub { +{} }, # Hash<EventType, &>
@@ -24,46 +24,46 @@ use slots (
 );
 
 sub BUILD ($self, $) {
-    $self->{state} = IDLE;
+    $self->{status} = IDLE;
 }
 
 sub name     ($self) { $self->{name}     }
 sub deferred ($self) { $self->{deferred} }
 
-sub is_active ($self) { $self->{state} == ACTIVE }
-sub is_idle   ($self) { $self->{state} == IDLE   }
+sub is_active ($self) { $self->{status} == ACTIVE }
+sub is_idle   ($self) { $self->{status} == IDLE   }
 
-sub ENTER ($self, $q) {
+sub ENTER ($self, $machine) {
     my $next;
     if ($self->{entry}) {
         # wrap this in an eval, .. but do what with the error?
-        $next = $self->{entry}->( $self, $q );
+        $next = $self->{entry}->( $self, $machine );
     }
 
-    $self->{state} = ACTIVE;
+    $self->{status} = ACTIVE;
     return $next;
 }
 
-sub EXIT ($self, $q) {
+sub EXIT ($self, $machine) {
     if ($self->{exit}) {
         # wrap this in an eval, .. but do what with the error?
-        $self->{exit}->( $self, $q );
+        $self->{exit}->( $self, $machine );
     }
 
-    $self->{state} = IDLE;
+    $self->{status} = IDLE;
 }
 
-sub TICK ($self, $e) {
+sub TICK ($self, $machine, $e) {
     my $next;
 
     if ( $e->isa('ELO::Core::Error') ) {
         my $catch = $self->{on_error}->{ $e->type->name };
         $catch ||= sub { die Dumper [ WTF => $e ] };
-        $next = $catch->( $e );
+        $next = $catch->( $self, $machine, $e );
     }
     else {
         # should this be wrapped in an eval?
-        $next = $self->{handlers}->{ $e->type->name }->( $e->payload );
+        $next = $self->{handlers}->{ $e->type->name }->( $self, $machine, $e->payload );
     }
 
     return $next;
