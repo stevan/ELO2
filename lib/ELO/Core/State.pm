@@ -14,7 +14,7 @@ use constant DEBUG => $ENV{DEBUG} // 0;
 
 use parent 'UNIVERSAL::Object';
 use slots (
-    name     => sub {},      # human name
+    name     => sub {},      # human friendly name
     entry    => sub {},      # the entry callback, called when a state is ENTERed
     exit     => sub {},      # the exit callback, called when a state is EXITed
     handlers => sub { +{} }, # Hash<EventType, &> event handlers, keyed by event type

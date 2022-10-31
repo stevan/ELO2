@@ -9,6 +9,8 @@ use Test::More;
 
 use ELO::Core;
 
+use ELO::Machine::Builder;
+
 ## Event Types
 
 my $eRequest  = ELO::Core::EventType->new( name => 'eRequest'  );
@@ -16,39 +18,45 @@ my $eResponse = ELO::Core::EventType->new( name => 'eResponse' );
 
 ## Machine
 
-my $M = ELO::Core::Machine->new(
-    name     => 'WebClient',
-    protocol => [ $eRequest, $eResponse ],
-    start    => ELO::Core::State->new(
-        name     => 'Init',
-        deferred => [ $eRequest, $eResponse ],
-        entry    => sub ($self) {
-            $self->machine->GOTO('WaitingForRequest');
-        },
-    ),
-    states   => [
-        ELO::Core::State->new(
-            name     => 'WaitingForRequest',
-            deferred => [ $eResponse ],
-            handlers => {
-                eRequest => sub ($self, $e) {
-                    warn "  GOT: eRequest  : >> " . join(' ', $e->payload->@*) . "\n";
-                    $self->machine->GOTO('WaitingForResponse');
-                }
+my $B = ELO::Machine::Builder
+    ->new
+    ->name('WebClient')
+    ->protocol([ $eRequest, $eResponse ])
+
+    ->start_state
+        ->name('Init')
+        ->deferred($eRequest, $eResponse)
+        ->entry(
+            sub ($self) {
+                $self->machine->GOTO('WaitingForRequest');
             }
-        ),
-        ELO::Core::State->new(
-            name     => 'WaitingForResponse',
-            deferred => [ $eRequest ],
-            handlers => {
-                eResponse => sub ($self, $e) {
-                    warn "  GOT: eResponse : << " . join(' ', $e->payload->@*) . "\n";
-                    $self->machine->GOTO('WaitingForRequest');
-                }
+        )
+        ->end
+
+    ->add_state
+        ->name('WaitingForRequest')
+        ->deferred($eResponse)
+        ->add_handler_for(
+            eRequest => sub ($self, $e) {
+                warn "  GOT: eRequest  : >> " . join(' ', $e->payload->@*) . "\n";
+                $self->machine->GOTO('WaitingForResponse');
             }
-        ),
-    ]
-);
+        )
+        ->end
+
+    ->add_state
+        ->name('WaitingForResponse')
+        ->deferred($eRequest)
+        ->add_handler_for(
+            eResponse => sub ($self, $e) {
+                warn "  GOT: eResponse : << " . join(' ', $e->payload->@*) . "\n";
+                $self->machine->GOTO('WaitingForRequest');
+            }
+        )
+        ->end
+;
+
+my $M = $B->build;
 
 $M->assign_pid('WebClient:001');
 
@@ -77,6 +85,7 @@ $M->RUN;
 #warn Dumper
 $M->STOP;
 
+=cut
 
 done_testing;
 

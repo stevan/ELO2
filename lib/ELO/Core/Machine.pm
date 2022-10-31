@@ -24,11 +24,12 @@ use constant STOPPED  => 9; # after the active state has been cleared
 
 use parent 'UNIVERSAL::Object';
 use slots (
-    pid      => sub {},      # a identifier for this machine instance
+    name     => sub {},      # human friendly name
     protocol => sub {},      # the set of EventTypes that will be used by this machine
     start    => sub {},      # the start state of the machine
     states   => sub { +[] }, # the other states of this machine
     # ...
+    _pid       => sub {},      # an externally supplied identifier for this machine instance
     _queue     => sub {},      # the event queue
     _status    => sub {},      # the various machine status
     _active    => sub {},      # the currently active state
@@ -49,9 +50,20 @@ sub BUILD ($self, $) {
     $self->set_status(BUILT);
 }
 
-# some accessors
+# name
 
-sub pid      ($self) { $self->{pid}      }
+sub name ($self) { $self->{name} }
+
+# pid
+
+sub pid ($self) { $self->{_pid} }
+
+sub assign_pid ($self, $pid) {
+    $self->{_pid} = $pid;
+}
+
+# protocol
+
 sub protocol ($self) { $self->{protocol} }
 
 # all things status
