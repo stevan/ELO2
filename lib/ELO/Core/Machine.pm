@@ -26,14 +26,25 @@ sub BUILD ($self, $) {
     $self->{queue} = ELO::Core::Queue->new;
 }
 
-sub pid      ($self) { $self->{pid}      }
+sub pid      ($self) { $self->{pid} }
+
 sub protocol ($self) { $self->{protocol} }
-sub start    ($self) { $self->{start}    }
-sub states   ($self) { $self->{states}   }
-sub queue    ($self) { $self->{queue}    }
+
+sub start    ($self) { $self->{start}  }
+sub states   ($self) { $self->{states} }
 
 sub is_running ($self) { $self->{state} == RUNNING }
 sub is_stopped ($self) { $self->{state} == STOPPED }
+
+sub queue ($self) { $self->{queue} }
+
+sub enqueue_event ($self, $e) {
+    $self->{queue}->enqueue($e)
+}
+
+sub dequeue_event ($self) {
+    $self->{queue}->dequeue( $self->{active}->deferred->@* )
+}
 
 sub START ($self) {
 
@@ -82,11 +93,9 @@ sub RUN ($self) {
     my $q = $self->queue;
 
     until ($q->is_empty) {
-        my $e = $q->dequeue( $self->{active}->deferred->@* );
+        my $e = $self->dequeue_event;
 
         last unless defined $e;
-
-        # TODO; check invarient here, only one state is ACTIVE
 
         my $next = $self->{active}->TICK($e);
         if ($next) {

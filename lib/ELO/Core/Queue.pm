@@ -12,7 +12,7 @@ use slots (
     inbox => sub { +[] },
 );
 
-sub is_empty ($self) {
+sub is_empty ($self, @deferred) {
     (scalar $self->{inbox}->@*) == 0
 }
 
@@ -24,6 +24,8 @@ sub dequeue ($self, @deferred) {
     my $idx = 0;
 
 DEQUEUE:
+    return if $idx >= scalar $self->{inbox}->@*;
+
     my $e = $self->{inbox}->[ $idx ];
 
     return unless defined $e;
