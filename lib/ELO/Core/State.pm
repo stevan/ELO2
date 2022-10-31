@@ -14,59 +14,76 @@ use constant DEBUG => $ENV{DEBUG} // 0;
 
 use parent 'UNIVERSAL::Object';
 use slots (
-    name     => sub {},
-    status   => sub {},
-    entry    => sub {},
-    exit     => sub {},
-    handlers => sub { +{} }, # Hash<EventType, &>
-    deferred => sub { +[] }, # Array<EventType>
-    on_error => sub { +{} }, # Hash<ErrorType, &>
+    name     => sub {},      # human name
+    entry    => sub {},      # the entry callback, called when a state is ENTERed
+    exit     => sub {},      # the exit callback, called when a state is EXITed
+    handlers => sub { +{} }, # Hash<EventType, &> event handlers, keyed by event type
+    deferred => sub { +[] }, # Array<EventType> events that should be deferred in this state
+    on_error => sub { +{} }, # Hash<ErrorType, &> error handlers, keyed by error type
+    # ...
+    _machine => sub {}, # machine this state is attached to
+    _status  => sub {}, # the status, either IDLE or ACTIVE
 );
 
 sub BUILD ($self, $) {
-    $self->{status} = IDLE;
+    $self->{_status} = IDLE;
 }
+
+# some accessors
 
 sub name     ($self) { $self->{name}     }
 sub deferred ($self) { $self->{deferred} }
 
-sub is_active ($self) { $self->{status} == ACTIVE }
-sub is_idle   ($self) { $self->{status} == IDLE   }
+# attached machine
 
-sub ENTER ($self, $machine) {
-    my $next;
+sub machine ($self) { $self->{_machine} }
+
+sub attach_to_machine ($self, $machine) {
+    $self->{_machine} = $machine;
+}
+
+# status
+
+sub is_active ($self) { $self->{_status} == ACTIVE }
+sub is_idle   ($self) { $self->{_status} == IDLE   }
+
+# controls
+
+sub ENTER ($self) {
+
     if ($self->{entry}) {
         # wrap this in an eval, .. but do what with the error?
-        $next = $self->{entry}->( $self, $machine );
+        $self->{entry}->( $self );
     }
 
-    $self->{status} = ACTIVE;
-    return $next;
+    $self->{_status} = ACTIVE;
+    return;
 }
 
-sub EXIT ($self, $machine) {
+sub EXIT ($self) {
+
     if ($self->{exit}) {
         # wrap this in an eval, .. but do what with the error?
-        $self->{exit}->( $self, $machine );
+        $self->{exit}->( $self );
     }
 
-    $self->{status} = IDLE;
+    $self->{_status} = IDLE;
+    return;
 }
 
-sub TICK ($self, $machine, $e) {
-    my $next;
+sub TICK ($self, $e) {
 
     if ( $e->isa('ELO::Core::Error') ) {
         my $catch = $self->{on_error}->{ $e->type->name };
         $catch ||= sub { die Dumper [ WTF => $e ] };
-        $next = $catch->( $self, $machine, $e );
+        $catch->( $self, $e );
     }
     else {
         # should this be wrapped in an eval?
-        $next = $self->{handlers}->{ $e->type->name }->( $self, $machine, $e->payload );
+        $self->{handlers}->{ $e->type->name }->( $self, $e );
     }
 
-    return $next;
+    return;
 }
 
 
