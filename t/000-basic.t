@@ -16,40 +16,35 @@ my $eResponse = ELO::Core::EventType->new( name => 'eResponse' );
 
 ## States
 
-my $Init = ELO::Core::State->new(
+my ($Init, $WaitingForRequest, $WaitingForResponse);
+
+$Init = ELO::Core::State->new(
     name     => 'Init',
     deferred => [ $eRequest, $eResponse ],
-    entry    => sub {},
-    on_error => {
-        E_EMPTY_QUEUE => sub { warn "ERROR: Empty Queue in Init\n" }
-    }
+    entry    => sub { return $WaitingForRequest },
 );
 
-my $WaitingForRequest = ELO::Core::State->new(
+$WaitingForRequest = ELO::Core::State->new(
     name     => 'WaitingForRequest',
     deferred => [ $eResponse ],
     entry    => sub {},
     handlers => {
         eRequest => sub ($request) {
             warn "  GOT: eRequest  : >> " . join(' ', @$request) . "\n";
+            return $WaitingForResponse;
         }
-    },
-    on_error => {
-        E_EMPTY_QUEUE => sub { warn "ERROR: Empty Queue in Waiting For Requests\n" }
     }
 );
 
-my $WaitingForResponse = ELO::Core::State->new(
+$WaitingForResponse = ELO::Core::State->new(
     name     => 'WaitingForResponse',
     deferred => [ $eRequest ],
     entry    => sub {},
     handlers => {
         eResponse => sub ($response) {
             warn "  GOT: eResponse : << " . join(' ', @$response) . "\n";
+            return $WaitingForRequest;
         }
-    },
-    on_error => {
-        E_EMPTY_QUEUE => sub { warn "ERROR: Empty Queue in Waiting For Responses\n" }
     }
 );
 
@@ -65,22 +60,26 @@ my $m = ELO::Core::Machine->new(
     ]
 );
 
+my $q = $m->queue;
+
 ## manual testing ...
 
-$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/'   ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  200, 'OK'  ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/foo'] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/bar'] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  300, '>>>' ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  404, ':-|' ] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/baz'] ));
-$m->queue->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  500, ':-O' ] ));
+warn Dumper $m->START;
 
-$Init->enter($m->queue);
-foreach ( 0 .. 5 ) {
-    $WaitingForRequest->enter($m->queue);
-    $WaitingForResponse->enter($m->queue);
-}
+$q->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/'   ] ));
+$q->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  200, 'OK  .oO( ~ )'  ] ));
+$q->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/foo'] ));
+$q->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/bar'] ));
+warn Dumper $m->RUN;
+
+
+$q->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  300, '>>> .oO(foo)' ] ));
+$q->enqueue(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/baz'] ));
+$q->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  404, ':-| .oO(bar)' ] ));
+$q->enqueue(ELO::Core::Event->new( type => $eResponse, payload => [  500, ':-O .oO(baz)' ] ));
+warn Dumper $m->RUN;
+
+warn Dumper $m->STOP;
 
 
 done_testing;

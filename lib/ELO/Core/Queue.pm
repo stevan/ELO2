@@ -3,21 +3,18 @@ use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
 
-use Carp       'confess';
 use List::Util 'any';
 
 use Data::Dumper;
-use constant DEBUG => $ENV{DEBUG} // 0;
-
-use ELO::Core::Error;
-use ELO::Core::ErrorType;
-
-my $E_EMPTY_QUEUE = ELO::Core::ErrorType->new( name => 'E_EMPTY_QUEUE' );
 
 use parent 'UNIVERSAL::Object::Immutable';
 use slots (
     inbox => sub { +[] },
 );
+
+sub is_empty ($self) {
+    (scalar $self->{inbox}->@*) == 0
+}
 
 sub enqueue ($self, $e) {
     push $self->{inbox}->@* => $e
@@ -29,9 +26,7 @@ sub dequeue ($self, @deferred) {
 DEQUEUE:
     my $e = $self->{inbox}->[ $idx ];
 
-    return ELO::Core::Error->new(
-        type => $E_EMPTY_QUEUE
-    ) unless defined $e;
+    return unless defined $e;
 
     if (any { $e->type->matches( $_ ) } @deferred) {
         $idx++;
