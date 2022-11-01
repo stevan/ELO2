@@ -19,13 +19,6 @@ my $eConnectionRequest = ELO::Core::EventType->new( name => 'eConnectionRequest'
 
 ## Machines
 
-my %ENDPOINTS = (
-    '/'    => [ 200, 'OK  .oO( ~ )' ],
-    '/foo' => [ 300, '>>> .oO(foo)' ],
-    '/bar' => [ 404, ':-| .oO(bar)' ],
-    '/baz' => [ 500, ':-O .oO(baz)' ],
-);
-
 my $ServerBuilder = ELO::Machine::Builder
     ->new
     ->name('WebServer')
@@ -48,7 +41,7 @@ my $ServerBuilder = ELO::Machine::Builder
                 $self->machine->loop->send_to(
                     $client => ELO::Core::Event->new(
                         type    => $eResponse,
-                        payload => $ENDPOINTS{ $request->[1] }
+                        payload => $self->machine->env->{endpoints}->{ $request->[1] }
                     )
                 );
             }
@@ -77,7 +70,8 @@ my $ClientBuilder = ELO::Machine::Builder
             eRequest => sub ($self, $e) {
                 warn "CLIENT GOT: eRequest  : >> " . join(' ', $e->payload->@*) . "\n";
                 $self->machine->loop->send_to(
-                    'WebServer:001' => ELO::Core::Event->new(
+                    $self->machine->env->{server},
+                    ELO::Core::Event->new(
                         type    => $eConnectionRequest,
                         payload => [ $self->machine->pid, $e->payload ]
                     )
@@ -108,8 +102,14 @@ my $L = ELO::Core::Loop->new(
 
 ## manual testing ...
 
-my $server_pid = $L->spawn('WebServer');
-my $client_pid = $L->spawn('WebClient');
+my $server_pid = $L->spawn('WebServer' => ( endpoints => {
+    '/'    => [ 200, 'OK  .oO( ~ )' ],
+    '/foo' => [ 300, '>>> .oO(foo)' ],
+    '/bar' => [ 404, ':-| .oO(bar)' ],
+    '/baz' => [ 500, ':-O .oO(baz)' ],
+}));
+
+my $client_pid = $L->spawn('WebClient' => ( server => $server_pid ));
 
 $L->send_to($client_pid => ELO::Core::Event->new(
     type => $eRequest, payload => ['GET', '/']

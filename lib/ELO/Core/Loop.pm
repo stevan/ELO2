@@ -49,12 +49,16 @@ sub send_to ($self, $pid, $event) {
 
 # processes
 
-sub spawn ($self, $machine_name) {
+sub spawn ($self, $machine_name, %env) {
     my $builder = $self->{_builder_map}->{ $machine_name };
     my $machine = $builder->build;
 
     $machine->assign_pid( $self->generate_new_pid( $machine ) );
     $self->{_pid_map}->{ $machine->pid } = $machine;
+
+    foreach my $k ( keys %env ) {
+        $machine->env->{ $k } = $env{ $k };
+    }
 
     $machine->attach_to_loop( $self );
     $machine->START;

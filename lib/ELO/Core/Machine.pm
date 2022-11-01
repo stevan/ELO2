@@ -29,6 +29,8 @@ use slots (
     start    => sub {},      # the start state of the machine
     states   => sub { +[] }, # the other states of this machine
     # ...
+    _env       => sub { +{} }, # immutable env settings for the machine
+    _context   => sub { +{} }, # mutable context for the machine
     _loop      => sub {},      # the associated event loop
     _pid       => sub {},      # an externally supplied identifier for this machine instance
     _queue     => sub {},      # the event queue
@@ -38,7 +40,7 @@ use slots (
     _state_map => sub { +{} }, # a mapping of state-name to state
 );
 
-sub BUILD ($self, $) {
+sub BUILD ($self, $params) {
     $self->set_status(BUILDING);
 
     $self->{_queue} = ELO::Core::Queue->new;
@@ -54,6 +56,11 @@ sub BUILD ($self, $) {
 # name
 
 sub name ($self) { $self->{name} }
+
+# context
+
+sub env     ($self) { $self->{_env} }
+sub context ($self) { $self->{_context} }
 
 # pid
 
