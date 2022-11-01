@@ -28,15 +28,15 @@ my $ServiceRegistryBuilder = ELO::Machine::Builder
     ->protocol([ $eServiceLookupRequest, $eServiceLookupResponse ])
     ->start_state
         ->name('Init')
-        ->entry(
-            sub ($self) {
-                $self->machine->GOTO('WaitingForLookupRequest');
-            }
-        )
-        ->end
-
-    ->add_state
-        ->name('WaitingForLookupRequest')
+#        ->entry(
+#            sub ($self) {
+#                $self->machine->GOTO('WaitingForLookupRequest');
+#            }
+#        )
+#        ->end
+#
+#    ->add_state
+#        ->name('WaitingForLookupRequest')
         ->add_handler_for(
             eServiceLookupRequest => sub ($self, $e) {
                 my ($requestor, $service_name) = $e->payload->@*;
