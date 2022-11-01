@@ -136,6 +136,7 @@ sub has_active_state ($self) { !! $self->{_active} }
 sub enter_active_state ($self, $state) {
     $self->{_active} = $state;
     $self->{_active}->ENTER;
+    $self->transition_state;
 }
 
 sub exit_active_state ($self) {
@@ -155,7 +156,6 @@ sub START ($self) {
     $self->set_status(STARTING);
 
     $self->enter_active_state($self->start);
-    $self->transition_state;
 
     $self->set_status(STARTED);
 
