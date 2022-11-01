@@ -8,74 +8,123 @@ use Data::Dumper;
 use Test::More;
 
 use ELO::Core;
+use ELO::Machine::Builder;
 
 ## Event Types
 
 my $eRequest  = ELO::Core::EventType->new( name => 'eRequest'  );
 my $eResponse = ELO::Core::EventType->new( name => 'eResponse' );
 
-## Machine
+my $eConnectionRequest = ELO::Core::EventType->new( name => 'eConnectionRequest' );
 
-my $M = ELO::Core::Machine->new(
-    name     => 'WebClient',
-    protocol => [ $eRequest, $eResponse ],
-    start    => ELO::Core::State->new(
-        name     => 'Init',
-        deferred => [ $eRequest, $eResponse ],
-        entry    => sub ($self) {
-            $self->machine->GOTO('WaitingForRequest');
-        },
-    ),
-    states   => [
-        ELO::Core::State->new(
-            name     => 'WaitingForRequest',
-            deferred => [ $eResponse ],
-            handlers => {
-                eRequest => sub ($self, $e) {
-                    warn "  GOT: eRequest  : >> " . join(' ', $e->payload->@*) . "\n";
-                    $self->machine->GOTO('WaitingForResponse');
-                }
+## Machines
+
+my %ENDPOINTS = (
+    '/'    => [ 200, 'OK  .oO( ~ )' ],
+    '/foo' => [ 300, '>>> .oO(foo)' ],
+    '/bar' => [ 404, ':-| .oO(bar)' ],
+    '/baz' => [ 500, ':-O .oO(baz)' ],
+);
+
+my $ServerBuilder = ELO::Machine::Builder
+    ->new
+    ->name('WebServer')
+    ->protocol([ $eConnectionRequest ])
+    ->start_state
+        ->name('Init')
+        ->entry(
+            sub ($self) {
+                $self->machine->GOTO('WaitingForConnectionRequest');
             }
-        ),
-        ELO::Core::State->new(
-            name     => 'WaitingForResponse',
-            deferred => [ $eRequest ],
-            handlers => {
-                eResponse => sub ($self, $e) {
-                    warn "  GOT: eResponse : << " . join(' ', $e->payload->@*) . "\n";
-                    $self->machine->GOTO('WaitingForRequest');
-                }
+        )
+        ->end
+
+    ->add_state
+        ->name('WaitingForConnectionRequest')
+        ->add_handler_for(
+            eConnectionRequest => sub ($self, $e) {
+                my ($client, $request) = $e->payload->@*;
+                warn "SERVER GOT: eConnectionRequest: " . Dumper [$client, $request];
+                $self->machine->loop->send_to(
+                    $client => ELO::Core::Event->new(
+                        type    => $eResponse,
+                        payload => $ENDPOINTS{ $request->[1] }
+                    )
+                );
             }
-        ),
+        )
+        ->end
+;
+
+my $ClientBuilder = ELO::Machine::Builder
+    ->new
+    ->name('WebClient')
+    ->protocol([ $eRequest, $eResponse ])
+    ->start_state
+        ->name('Init')
+        ->deferred($eRequest, $eResponse)
+        ->entry(
+            sub ($self) {
+                $self->machine->GOTO('WaitingForRequest');
+            }
+        )
+        ->end
+
+    ->add_state
+        ->name('WaitingForRequest')
+        ->deferred($eResponse)
+        ->add_handler_for(
+            eRequest => sub ($self, $e) {
+                warn "CLIENT GOT: eRequest  : >> " . join(' ', $e->payload->@*) . "\n";
+                $self->machine->loop->send_to(
+                    'WebServer:001' => ELO::Core::Event->new(
+                        type    => $eConnectionRequest,
+                        payload => [ $self->machine->pid, $e->payload ]
+                    )
+                );
+                $self->machine->GOTO('WaitingForResponse');
+            }
+        )
+        ->end
+
+    ->add_state
+        ->name('WaitingForResponse')
+        ->deferred($eRequest)
+        ->add_handler_for(
+            eResponse => sub ($self, $e) {
+                warn "CLIENT GOT: eResponse : << " . join(' ', $e->payload->@*) . "\n";
+                $self->machine->GOTO('WaitingForRequest');
+            }
+        )
+        ->end
+;
+
+my $L = ELO::Core::Loop->new(
+    builders => [
+        $ServerBuilder,
+        $ClientBuilder,
     ]
 );
 
-$M->assign_pid('WebClient:001');
-
 ## manual testing ...
 
-$M->START;
+my $server_pid = $L->spawn('WebServer');
+my $client_pid = $L->spawn('WebClient');
 
-$M->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/'   ] ));
-$M->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  200, 'OK  .oO( ~ )'  ] ));
-$M->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/foo'] ));
-$M->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/bar'] ));
-#warn Dumper
-$M->RUN;
+$L->send_to($client_pid => ELO::Core::Event->new(
+    type => $eRequest, payload => ['GET', '/']
+));
+$L->send_to($client_pid => ELO::Core::Event->new(
+    type => $eRequest, payload => ['GET', '/foo']
+));
+$L->send_to($client_pid => ELO::Core::Event->new(
+    type => $eRequest, payload => ['GET', '/bar']
+));
+$L->send_to($client_pid => ELO::Core::Event->new(
+    type => $eRequest, payload => ['GET', '/baz']
+));
 
-
-$M->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  300, '>>> .oO(foo)' ] ));
-#warn Dumper
-$M->RUN;
-
-$M->enqueue_event(ELO::Core::Event->new( type => $eRequest,  payload => ['GET', '/baz'] ));
-$M->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  404, ':-| .oO(bar)' ] ));
-$M->enqueue_event(ELO::Core::Event->new( type => $eResponse, payload => [  500, ':-O .oO(baz)' ] ));
-#warn Dumper
-$M->RUN;
-
-#warn Dumper
-$M->STOP;
+$L->LOOP( 20 );
 
 
 done_testing;

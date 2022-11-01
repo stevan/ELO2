@@ -15,6 +15,15 @@ use slots (
     states   => sub { +[] }, # the other states of this machine
 );
 
+# getters
+
+sub get_name     ($self) { $self->{name}     }
+sub get_protocol ($self) { $self->{protocol} }
+sub get_start    ($self) { $self->{start}    }
+sub get_states   ($self) { $self->{states}   }
+
+# setters
+
 sub name ($self, $name) {
     $self->{name} = $name;
     $self;

@@ -12,6 +12,9 @@ use ELO::Core::Machine;
 use ELO::Core::State;
 use ELO::Core::Queue;
 
+use ELO::Core::Loop;
+use ELO::Core::Message;
+
 1;
 
 __END__

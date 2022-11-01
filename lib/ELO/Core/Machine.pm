@@ -29,6 +29,7 @@ use slots (
     start    => sub {},      # the start state of the machine
     states   => sub { +[] }, # the other states of this machine
     # ...
+    _loop      => sub {},      # the associated event loop
     _pid       => sub {},      # an externally supplied identifier for this machine instance
     _queue     => sub {},      # the event queue
     _status    => sub {},      # the various machine status
@@ -60,6 +61,14 @@ sub pid ($self) { $self->{_pid} }
 
 sub assign_pid ($self, $pid) {
     $self->{_pid} = $pid;
+}
+
+# loop
+
+sub loop ($self) { $self->{_loop} }
+
+sub attach_to_loop ($self, $loop) {
+    $self->{_loop} = $loop;
 }
 
 # protocol
@@ -159,7 +168,7 @@ sub STOP ($self) {
     return $self;
 }
 
-sub RUN ($self) {
+sub TICK ($self) {
 
     $self->set_status(RUNNING);
 
