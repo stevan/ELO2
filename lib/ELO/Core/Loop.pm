@@ -70,6 +70,8 @@ sub spawn ($self, $machine_name, %env) {
 
 sub TICK ($self) {
 
+    warn '--('.sprintf('%03d', $self->{_tick}).')'.join('','-' x 70)."\n";
+
     my @msgs = $self->{_message_bus}->@*;
     $self->{_message_bus}->@* = ();
 
