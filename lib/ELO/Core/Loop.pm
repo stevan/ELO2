@@ -11,20 +11,28 @@ use List::Util 'uniq';
 
 use parent 'UNIVERSAL::Object';
 use slots (
-    builders    => sub { +[] }, # a set of Machine::Builder objects
+    machines          => sub { +[] }, # a set of Machine process objects
+    monitors          => sub { +[] }, # a set of Machine monitor objects
     # ...
     _tick             => sub { 0 },   # the tick counter
     _pid_counter      => sub { 0 },   # the pid counter
-    _builder_map      => sub { +{} }, # mapping of machine name to builder instance
-    _pid_map          => sub { +{} }, # mapping of pid to machine instance
-    _monitor_pid_map  => sub { +{} }, # mapping of pid to monitor instances
+    _machine_map      => sub { +{} }, # mapping of machine name to machine object used to create new processes
+    _process_table    => sub { +{} }, # mapping of pid to machine instance
+    _monitor_table    => sub { +{} }, # mapping of pid to monitor instances
     _monitored_events => sub { +{} }, # mapping of event types to monitor instances
     _message_bus      => sub { +[] }, # the message bus between machines
 );
 
 sub BUILD ($self, $) {
-    foreach my $builder ($self->{builders}->@*) {
-        $self->{_builder_map}->{ $builder->get_name } = $builder;
+    foreach my $machine ($self->{machines}->@*) {
+        $self->{_machine_map}->{ $machine->name } = $machine;
+    }
+
+    foreach my $monitor ($self->{monitors}->@*) {
+        foreach my $event ( $monitor->protocol->@* ) {
+            $self->{_monitored_events}->{ $event->name } //= [];
+            push $self->{_monitored_events}->{ $event->name }->@* => $monitor;
+        }
     }
 }
 
@@ -52,11 +60,11 @@ sub send_to ($self, $pid, $event) {
 # processes
 
 sub spawn ($self, $machine_name, %env) {
-    my $builder = $self->{_builder_map}->{ $machine_name };
-    my $machine = $builder->build;
+    my $machine = $self->{_machine_map}->{ $machine_name }->CLONE;
 
     $machine->assign_pid( $self->generate_new_pid( $machine ) );
-    $self->{_pid_map}->{ $machine->pid } = $machine;
+    $machine->become_process;
+    $self->{_process_table}->{ $machine->pid } = $machine;
 
     foreach my $k ( keys %env ) {
         $machine->env->{ $k } = $env{ $k };
@@ -68,24 +76,20 @@ sub spawn ($self, $machine_name, %env) {
     return $machine->pid;
 }
 
-# monitors
-
-sub monitor ($self, $monitor) {
-    $monitor->assign_pid( $self->generate_new_pid( $monitor ) );
-    $self->{_monitor_pid_map}->{ $monitor->pid } = $monitor;
-
-    foreach my $event ( $monitor->protocol->@* ) {
-        $self->{_monitored_events}->{ $event->name } //= [];
-        push $self->{_monitored_events}->{ $event->name }->@* => $monitor;
-    }
-
-    $monitor->attach_to_loop( $self );
-    $monitor->START;
-
-    return $monitor->pid;
-}
-
 # controls
+
+sub START ($self) {
+
+    # start all the monitors
+    foreach my $monitor ($self->{monitors}->@*) {
+        $monitor->assign_pid( $self->generate_new_pid( $monitor ) );
+        $self->{_monitor_table}->{ $monitor->pid } = $monitor;
+        $monitor->become_monitor;
+
+        $monitor->attach_to_loop( $self );
+        $monitor->START;
+    }
+}
 
 sub TICK ($self) {
 
@@ -105,7 +109,7 @@ sub TICK ($self) {
             }
         }
 
-        my $machine = $self->{_pid_map}->{ $message->pid };
+        my $machine = $self->{_process_table}->{ $message->pid };
         if ($machine) {
             $machine->enqueue_event( $message->event );
             $machine->TICK;
@@ -120,6 +124,9 @@ sub TICK ($self) {
 }
 
 sub LOOP ($self, $MAX_TICKS) {
+
+    $self->START;
+
     while ($self->{_tick} <= $MAX_TICKS) {
         $self->TICK;
     }

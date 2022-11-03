@@ -9,6 +9,9 @@ use Data::Dumper;
 
 use ELO::Core::Queue;
 
+use constant PROCESS => 1; # this machine is being used as a process
+use constant MONITOR => 2; # this machine is being used as a monitor
+
 use constant BUILDING => 1; # when the object is being built
 use constant BUILT    => 2; # when the object has been built, but not started
 
@@ -29,6 +32,7 @@ use slots (
     start    => sub {},      # the start state of the machine
     states   => sub { +[] }, # the other states of this machine
     # ...
+    _kind      => sub {},      # how is this process being used
     _env       => sub { +{} }, # immutable env settings for the machine
     _context   => sub { +{} }, # mutable context for the machine
     _loop      => sub {},      # the associated event loop
@@ -51,6 +55,17 @@ sub BUILD ($self, $params) {
     }
 
     $self->set_status(BUILT);
+}
+
+# duplicate ones self
+
+sub CLONE ($self) {
+    ELO::Core::Machine->new(
+        name     => $self->{name},
+        protocol => $self->{protocol},
+        start    => $self->{start}->CLONE,
+        states   => [ map { $_->CLONE } $self->{states}->@* ],
+    )
 }
 
 # name
@@ -81,6 +96,16 @@ sub attach_to_loop ($self, $loop) {
 # protocol
 
 sub protocol ($self) { $self->{protocol} }
+
+# machine type
+
+sub kind ($self) { $self->{_kind} }
+
+sub is_monitor ($self) { $self->{_kind} == MONITOR }
+sub is_process ($self) { $self->{_kind} == PROCESS }
+
+sub become_monitor ($self) { $self->{_kind} = MONITOR }
+sub become_process ($self) { $self->{_kind} = PROCESS }
 
 # all things status
 

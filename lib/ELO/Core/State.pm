@@ -29,6 +29,19 @@ sub BUILD ($self, $) {
     $self->{_status} = IDLE;
 }
 
+# duplicate ones self
+
+sub CLONE ($self) {
+    ELO::Core::State->new(
+        name     => $self->{name},
+        entry    => $self->{entry},
+        exit     => $self->{exit},
+        handlers => { $self->{handlers}->%* },
+        deferred => [ $self->{deferred}->@* ],
+        on_error => { $self->{on_error}->%* },
+    )
+}
+
 # some accessors
 
 sub name     ($self) { $self->{name}     }
