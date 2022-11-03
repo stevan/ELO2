@@ -95,7 +95,6 @@ my $ClientBuilder = ELO::Machine::Builder
     ->protocol([ $eRequest, $eResponse ])
     ->start_state
         ->name('Init')
-        ->deferred($eRequest, $eResponse)
         ->entry(
             sub ($self) {
                 $self->machine->env->{service_lookup_cache} = +{};
@@ -118,8 +117,10 @@ my $ClientBuilder = ELO::Machine::Builder
                 $self->machine->context->{server}  = $server;
                 $self->machine->context->{request} = [ $method, $path ];
 
+                #warn Dumper $self->machine->env->{service_lookup_cache};
+
                 if ( exists $self->machine->env->{service_lookup_cache}->{$server} ) {
-                    warn "CLIENT(".$self->machine->pid.") using service-lookup-cache for ($server)\n";
+                    warn "CLIENT(".$self->machine->pid.") CACHE: using service-lookup-cache for ($server)\n";
                     my $server_pid = $self->machine->env->{service_lookup_cache}->{$server};
                     $self->machine->context->{server_pid} = $server_pid;
                     $self->machine->GOTO('SendConnectionRequest');
@@ -143,20 +144,14 @@ my $ClientBuilder = ELO::Machine::Builder
                         payload => [ $self->machine->pid, $self->machine->context->{server} ]
                     )
                 );
-                $self->machine->GOTO('WaitingForLookupResponse');
             }
         )
-        ->end
-
-    ->add_state
-        ->name('WaitingForLookupResponse')
-        ->deferred($eRequest, $eResponse)
         ->add_handler_for(
             eServiceLookupResponse => sub ($self, $e) {
                 warn "CLIENT(".$self->machine->pid.") GOT: eServiceLookupResponse  : >> " . join(' ', $e->payload->@*) . "\n";
                 my ($server_pid) = $e->payload->@*;
                 $self->machine->context->{server_pid} = $server_pid;
-                $self->machine->context->{service_lookup_cache}->{ $self->machine->context->{server} } = $server_pid;
+                $self->machine->env->{service_lookup_cache}->{ $self->machine->context->{server} } = $server_pid;
                 $self->machine->GOTO('SendConnectionRequest');
             }
         )
@@ -164,7 +159,7 @@ my $ClientBuilder = ELO::Machine::Builder
 
     ->add_state
         ->name('SendConnectionRequest')
-        ->deferred($eRequest, $eResponse)
+        ->deferred($eRequest)
         ->entry(
             sub ($self) {
                 warn "CLIENT(".$self->machine->pid.") SENDING: eConnectionRequest to ".$self->machine->context->{server_pid}."\n";
@@ -178,14 +173,8 @@ my $ClientBuilder = ELO::Machine::Builder
                         ]
                     )
                 );
-                $self->machine->GOTO('WaitingForResponse');
             }
         )
-        ->end
-
-    ->add_state
-        ->name('WaitingForResponse')
-        ->deferred($eRequest)
         ->add_handler_for(
             eResponse => sub ($self, $e) {
                 warn "CLIENT(".$self->machine->pid.") GOT: eResponse : << " . join(' ', $e->payload->@*) . "\n";
@@ -236,7 +225,7 @@ $L->send_to($client002_pid => ELO::Core::Event->new(
     type => $eRequest, payload => ['GET', '//server.two/foo']
 ));
 $L->send_to($client001_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.two/bar']
+    type => $eRequest, payload => ['GET', '//server.one/bar']
 ));
 $L->send_to($client002_pid => ELO::Core::Event->new(
     type => $eRequest, payload => ['GET', '//server.one/baz']

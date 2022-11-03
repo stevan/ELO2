@@ -27,7 +27,7 @@ sub BUILD ($self, $) {
 }
 
 sub generate_new_pid ($self, $machine) {
-    sprintf '%s:%03d' => $machine->name, ++$self->{_pid_counter}
+    sprintf '$%s:%03d' => $machine->name, ++$self->{_pid_counter}
 }
 
 sub tick ($self) { $self->{_tick} }
