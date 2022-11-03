@@ -52,7 +52,7 @@ sub deferred ($self) { $self->{deferred} }
 sub machine ($self) { $self->{_machine} }
 
 sub attach_to_machine ($self, $machine) {
-    $self->{_machine} = $machine;
+    $self->{_machine} = $machine; # FIXME: single assignment
 }
 
 # status

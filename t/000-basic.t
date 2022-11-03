@@ -8,7 +8,6 @@ use Data::Dumper;
 use Test::More;
 
 use ELO::Core;
-use ELO::Machine::Builder;
 
 ## Event Types
 
@@ -44,7 +43,7 @@ my $ServiceRegistry = ELO::Core::Machine->new(
 
 my $Server = ELO::Core::Machine->new(
     name     => 'WebService',
-    protocol => [ $eConnectionRequest ],
+    protocol => [ $eConnectionRequest, $eResponse ],
     start    => ELO::Core::State->new(
         name  => 'Init',
         entry => sub ($self) {

@@ -82,7 +82,7 @@ sub context ($self) { $self->{_context} }
 sub pid ($self) { $self->{_pid} }
 
 sub assign_pid ($self, $pid) {
-    $self->{_pid} = $pid;
+    $self->{_pid} = $pid; # FIXME: single assignment
 }
 
 # loop
@@ -90,7 +90,7 @@ sub assign_pid ($self, $pid) {
 sub loop ($self) { $self->{_loop} }
 
 sub attach_to_loop ($self, $loop) {
-    $self->{_loop} = $loop;
+    $self->{_loop} = $loop; # FIXME: single assignment
 }
 
 # protocol
@@ -104,6 +104,7 @@ sub kind ($self) { $self->{_kind} }
 sub is_monitor ($self) { $self->{_kind} == MONITOR }
 sub is_process ($self) { $self->{_kind} == PROCESS }
 
+# FIXME: these should be single assignment
 sub become_monitor ($self) { $self->{_kind} = MONITOR }
 sub become_process ($self) { $self->{_kind} = PROCESS }
 
