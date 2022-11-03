@@ -25,7 +25,7 @@ use constant STOPPED  => 9; # after the active state has been cleared
 use parent 'UNIVERSAL::Object';
 use slots (
     name     => sub {},      # human friendly name
-    protocol => sub {},      # the set of EventTypes that will be used by this machine
+    protocol => sub {},      # the set of EventTypes that will be sent/recv by this machine
     start    => sub {},      # the start state of the machine
     states   => sub { +[] }, # the other states of this machine
     # ...

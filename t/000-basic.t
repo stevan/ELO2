@@ -184,6 +184,25 @@ my $ClientBuilder = ELO::Machine::Builder
         ->end
 ;
 
+my $RequestObserver = ELO::Core::Machine->new(
+    name     => 'RequestObserver',
+    protocol => [ $eServiceLookupRequest, $eRequest, $eConnectionRequest ],
+    start    => ELO::Core::State->new(
+        name => 'WatchingRequests',
+        handlers => {
+            eServiceLookupRequest => sub ($self, $e) {
+                warn ">>> OBSERVER(".$self->machine->pid.") GOT: eServiceLookupRequest: " . Dumper $e;
+            },
+            eRequest => sub ($self, $e) {
+                warn ">>> OBSERVER(".$self->machine->pid.") GOT: eRequest: " . Dumper $e;
+            },
+            eConnectionRequest => sub ($self, $e) {
+                warn ">>> OBSERVER(".$self->machine->pid.") GOT: eConnectionRequest: " . Dumper $e;
+            }
+        }
+    )
+);
+
 my $L = ELO::Core::Loop->new(
     builders => [
         $ServerBuilder,
@@ -193,6 +212,8 @@ my $L = ELO::Core::Loop->new(
 );
 
 ## manual testing ...
+
+my $monitor001_pid = $L->monitor($RequestObserver);
 
 my $server001_pid = $L->spawn('WebService' => ( endpoints => {
     '/'    => [ 200, 'OK  .oO( ~ )' ],

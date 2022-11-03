@@ -13,11 +13,13 @@ use parent 'UNIVERSAL::Object';
 use slots (
     builders    => sub { +[] }, # a set of Machine::Builder objects
     # ...
-    _tick        => sub { 0 },   # the tick counter
-    _pid_counter => sub { 0 },   # the pid counter
-    _builder_map => sub { +{} }, # mapping of machine name to builder instance
-    _pid_map     => sub { +{} }, # mapping of pid to machine instance
-    _message_bus => sub { +[] }, # the message bus between machines
+    _tick             => sub { 0 },   # the tick counter
+    _pid_counter      => sub { 0 },   # the pid counter
+    _builder_map      => sub { +{} }, # mapping of machine name to builder instance
+    _pid_map          => sub { +{} }, # mapping of pid to machine instance
+    _monitor_pid_map  => sub { +{} }, # mapping of pid to monitor instances
+    _monitored_events => sub { +{} }, # mapping of event types to monitor instances
+    _message_bus      => sub { +[] }, # the message bus between machines
 );
 
 sub BUILD ($self, $) {
@@ -66,6 +68,23 @@ sub spawn ($self, $machine_name, %env) {
     return $machine->pid;
 }
 
+# monitors
+
+sub monitor ($self, $monitor) {
+    $monitor->assign_pid( $self->generate_new_pid( $monitor ) );
+    $self->{_monitor_pid_map}->{ $monitor->pid } = $monitor;
+
+    foreach my $event ( $monitor->protocol->@* ) {
+        $self->{_monitored_events}->{ $event->name } //= [];
+        push $self->{_monitored_events}->{ $event->name }->@* => $monitor;
+    }
+
+    $monitor->attach_to_loop( $self );
+    $monitor->START;
+
+    return $monitor->pid;
+}
+
 # controls
 
 sub TICK ($self) {
@@ -78,18 +97,22 @@ sub TICK ($self) {
     my @machines_to_run;
     while (@msgs) {
         my $message = shift @msgs;
+
+        if ( exists $self->{_monitored_events}->{ $message->event->type->name } ) {
+            foreach my $monitor ( $self->{_monitored_events}->{ $message->event->type->name }->@* ) {
+                $monitor->enqueue_event( $message->event );
+                $monitor->TICK;
+            }
+        }
+
         my $machine = $self->{_pid_map}->{ $message->pid };
         if ($machine) {
             $machine->enqueue_event( $message->event );
-            push @machines_to_run => $machine;
+            $machine->TICK;
         }
         else {
             die "Could not find machine for pid(".$message->pid.")"
         }
-    }
-
-    foreach my $machine (@machines_to_run) {
-        $machine->TICK;
     }
 
     $self->{_tick}++;
