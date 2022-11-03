@@ -10,6 +10,9 @@ use Data::Dumper;
 use constant IDLE   => 1;
 use constant ACTIVE => 2;
 
+use constant HOT  => 1;
+use constant COLD => 2;
+
 use constant DEBUG => $ENV{DEBUG} // 0;
 
 use parent 'UNIVERSAL::Object';
@@ -21,12 +24,16 @@ use slots (
     deferred => sub { +[] }, # Array<EventType> events that should be deferred in this state
     on_error => sub { +{} }, # Hash<ErrorType, &> error handlers, keyed by error type
     # ...
-    _machine => sub {}, # machine this state is attached to
-    _status  => sub {}, # the status, either IDLE or ACTIVE
+    _machine     => sub {}, # machine this state is attached to
+    _status      => sub {}, # the status, either IDLE or ACTIVE
+    _temperature => sub {}, # is this HOT or COLD
 );
 
-sub BUILD ($self, $) {
+sub BUILD ($self, $params) {
     $self->{_status} = IDLE;
+
+    # it can only be marked HOT, otherwise it is COLD
+    $self->{_temperature} = $params->{is_hot} ? HOT : COLD;
 }
 
 # duplicate ones self
@@ -59,6 +66,11 @@ sub attach_to_machine ($self, $machine) {
 
 sub is_active ($self) { $self->{_status} == ACTIVE }
 sub is_idle   ($self) { $self->{_status} == IDLE   }
+
+# temperature
+
+sub is_hot  ($self) { $self->{_temperature} == HOT  }
+sub is_cold ($self) { $self->{_temperature} == COLD }
 
 # controls
 

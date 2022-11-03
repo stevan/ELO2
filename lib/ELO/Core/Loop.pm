@@ -91,6 +91,23 @@ sub START ($self) {
     }
 }
 
+sub STOP ($self) {
+
+    # stop all the active machines
+    foreach my $machine (values $self->{_process_table}->%*) {
+        $machine->STOP;
+    }
+
+    # stop all the monitors
+    foreach my $monitor (values $self->{_monitor_table}->%*) {
+        $monitor->STOP;
+    }
+
+    # clear the active machine table
+    $self->{_monitor_table}->%* = ();
+    $self->{_process_table}->%* = ();
+}
+
 sub TICK ($self) {
 
     warn '--('.sprintf('%03d', $self->{_tick}).')'.join('','-' x 70)."\n";
@@ -130,6 +147,8 @@ sub LOOP ($self, $MAX_TICKS) {
     while ($self->{_tick} <= $MAX_TICKS) {
         $self->TICK;
     }
+
+    $self->STOP;
 }
 
 1;

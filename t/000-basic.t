@@ -2,7 +2,7 @@
 
 use v5.24;
 use warnings;
-use experimental 'signatures', 'postderef';
+use experimental 'signatures', 'postderef', 'lexical_subs';
 
 use Data::Dumper;
 use Test::More;
@@ -61,14 +61,15 @@ my $Server = ELO::Core::Machine->new(
 
                     $self->machine->context->{stats}->{counter}++;
 
-                    my $endpoint = $request->[1];
+                    my $request_id = $request->[0];
+                    my $endpoint   = $request->[-1];
 
                     my $response;
                     if ( $endpoint eq '/stats' ) {
-                        $response = [ 200, 'CNT .oO( '.$self->machine->context->{stats}->{counter}.' )' ];
+                        $response = [ $request_id, 200, 'CNT .oO( '.$self->machine->context->{stats}->{counter}.' )' ];
                     }
                     else {
-                        $response = [ $self->machine->env->{endpoints}->{ $endpoint }->@* ];
+                        $response = [ $request_id, $self->machine->env->{endpoints}->{ $endpoint }->@* ];
                     }
 
                     push @$response => '<<'.$self->machine->pid.'>>';
@@ -108,7 +109,11 @@ my $Client = ELO::Core::Machine->new(
 
                     $self->machine->context->%* = ();
                     $self->machine->context->{server}  = $server;
-                    $self->machine->context->{request} = [ $method, $path ];
+                    $self->machine->context->{request} = [
+                        $self->machine->env->{next_request_id}->(),
+                        $method,
+                        $path
+                    ];
 
                     #warn Dumper $self->machine->env->{service_lookup_cache};
 
@@ -125,9 +130,9 @@ my $Client = ELO::Core::Machine->new(
             }
         ),
         ELO::Core::State->new(
-            name => 'SendLookupRequest',
+            name     => 'SendLookupRequest',
             deferred => [ $eRequest, $eResponse ],
-            entry => sub ($self) {
+            entry    => sub ($self) {
                 warn "CLIENT(".$self->machine->pid.") SENDING: eServiceLookupRequest to ".$self->machine->env->{registry}."\n";
                 $self->machine->loop->send_to(
                     $self->machine->env->{registry},
@@ -148,9 +153,9 @@ my $Client = ELO::Core::Machine->new(
             }
         ),
         ELO::Core::State->new(
-            name => 'SendConnectionRequest',
+            name     => 'SendConnectionRequest',
             deferred => [ $eRequest ],
-            entry => sub ($self) {
+            entry    => sub ($self) {
                 warn "CLIENT(".$self->machine->pid.") SENDING: eConnectionRequest to ".$self->machine->context->{server_pid}."\n";
                 $self->machine->loop->send_to(
                     $self->machine->context->{server_pid},
@@ -173,27 +178,37 @@ my $Client = ELO::Core::Machine->new(
     ]
 );
 
-my $RequestObserver = ELO::Core::Machine->new(
-    name     => 'RequestObserver',
-    protocol => [ $eServiceLookupRequest, $eRequest, $eConnectionRequest ],
+my $AllRequestAreSatisfied = ELO::Core::Machine->new(
+    name     => 'AllRequestAreSatisfied',
+    protocol => [ $eConnectionRequest, $eResponse ],
     start    => ELO::Core::State->new(
-        name     => 'WatchingRequests',
+        name     => 'CheckRequests',
+        entry    => sub ($self) {
+            $self->machine->context->{seen_requests} = {};
+        },
+        exit     => sub ($self) {
+            warn ">>> MONITOR(".$self->machine->pid.") has pending requests!!" . Dumper $self->machine->context->{seen_requests}
+                unless (scalar keys $self->machine->context->{seen_requests}->%*) == 0;
+        },
         handlers => {
-            eServiceLookupRequest => sub ($self, $e) {
-                warn ">>> MONITOR(".$self->machine->pid.") GOT: eServiceLookupRequest\n"
-            },
-            eRequest => sub ($self, $e) {
-                warn ">>> MONITOR(".$self->machine->pid.") GOT: eRequest\n"
-            },
             eConnectionRequest => sub ($self, $e) {
-                warn ">>> MONITOR(".$self->machine->pid.") GOT: eConnectionRequest\n"
-            }
-        }
+                my $request_id = $e->payload->[1]->[0];
+                warn ">>> MONITOR(".$self->machine->pid.") GOT: eConnectionRequest id: $request_id\n";
+                $self->machine->context->{seen_requests}->{ $request_id }++;
+            },
+            eResponse => sub ($self, $e) {
+                my $request_id = $e->payload->[0];
+                warn ">>> MONITOR(".$self->machine->pid.") GOT: eResponse request-id: $request_id.\n";
+                delete $self->machine->context->{seen_requests}->{ $request_id };
+            },
+        },
     )
 );
 
 my $L = ELO::Core::Loop->new(
-    monitors => [ $RequestObserver ],
+    monitors => [
+        $AllRequestAreSatisfied
+    ],
     machines => [
         $Server,
         $Client,
@@ -224,8 +239,20 @@ my $service_registry_pid = $L->spawn('ServiceRegistry' => (
     }
 ));
 
-my $client001_pid = $L->spawn('WebClient' => ( registry => $service_registry_pid ));
-my $client002_pid = $L->spawn('WebClient' => ( registry => $service_registry_pid ));
+my sub request_id_generator {
+    state $current_request_id = 0;
+    sprintf 'req:%d' => ++$current_request_id;
+}
+
+my $client001_pid = $L->spawn('WebClient' => (
+    registry        => $service_registry_pid,
+    next_request_id => \&request_id_generator,
+));
+
+my $client002_pid = $L->spawn('WebClient' => (
+    registry        => $service_registry_pid,
+    next_request_id => \&request_id_generator,
+));
 
 $L->send_to($client001_pid => ELO::Core::Event->new(
     type => $eRequest, payload => ['GET', '//server.one/']
@@ -247,7 +274,7 @@ $L->send_to($client001_pid => ELO::Core::Event->new(
     type => $eRequest, payload => ['GET', '//server.two/stats']
 ));
 
-$L->LOOP( 20 );
+$L->LOOP( 20 ); # 11 leaves us with a pending response
 
 
 done_testing;
