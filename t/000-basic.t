@@ -30,7 +30,7 @@ my $ServiceRegistry = ELO::Core::Machine->new(
             eServiceLookupRequest => sub ($self, $e) {
                 my ($requestor, $service_name) = $e->payload->@*;
                 warn "LOCATOR(".$self->machine->pid.") GOT: eServiceLookupRequest: " . Dumper [$requestor, $service_name];
-                $self->machine->loop->send_to(
+                $self->machine->send_to(
                     $requestor => ELO::Core::Event->new(
                         type    => $eServiceLookupResponse,
                         payload => [ $self->machine->env->{registry}->{ $service_name } ]
@@ -74,7 +74,7 @@ my $Server = ELO::Core::Machine->new(
 
                     push @$response => '<<'.$self->machine->pid.'>>';
 
-                    $self->machine->loop->send_to(
+                    $self->machine->send_to(
                         $client => ELO::Core::Event->new(
                             type    => $eResponse,
                             payload => $response
@@ -134,7 +134,7 @@ my $Client = ELO::Core::Machine->new(
             deferred => [ $eRequest, $eResponse ],
             entry    => sub ($self) {
                 warn "CLIENT(".$self->machine->pid.") SENDING: eServiceLookupRequest to ".$self->machine->env->{registry}."\n";
-                $self->machine->loop->send_to(
+                $self->machine->send_to(
                     $self->machine->env->{registry},
                     ELO::Core::Event->new(
                         type    => $eServiceLookupRequest,
@@ -157,7 +157,7 @@ my $Client = ELO::Core::Machine->new(
             deferred => [ $eRequest ],
             entry    => sub ($self) {
                 warn "CLIENT(".$self->machine->pid.") SENDING: eConnectionRequest to ".$self->machine->context->{server_pid}."\n";
-                $self->machine->loop->send_to(
+                $self->machine->send_to(
                     $self->machine->context->{server_pid},
                     ELO::Core::Event->new(
                         type    => $eConnectionRequest,
@@ -268,33 +268,42 @@ my $client003_pid = $L->spawn('WebClient' => (
     next_request_id => \&request_id_generator,
 ));
 
-$L->send_to($client001_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.one/']
+$L->enqueue_message(ELO::Core::Message->new(
+    to    => $client001_pid,
+    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
 ));
-$L->send_to($client002_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.two/foo']
+$L->enqueue_message(ELO::Core::Message->new(
+    to    => $client002_pid,
+    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
 ));
-$L->send_to($client003_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.one/']
+$L->enqueue_message(ELO::Core::Message->new(
+    to    => $client003_pid,
+    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
 ));
-$L->send_to($client001_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.one/bar']
+$L->enqueue_message(ELO::Core::Message->new(
+    to    => $client001_pid,
+    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/bar'] )
 ));
-$L->send_to($client002_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.one/baz']
+$L->enqueue_message(ELO::Core::Message->new(
+    to    => $client002_pid,
+    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/baz'] )
 ));
-$L->send_to($client003_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.one/foo']
+$L->enqueue_message(ELO::Core::Message->new(
+    to    => $client003_pid,
+    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/foo'] )
 ));
-$L->send_to($client003_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.two/foo']
+$L->enqueue_message(ELO::Core::Message->new(
+    to    => $client003_pid,
+    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
 ));
 
-$L->send_to($client001_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.one/stats']
+$L->enqueue_message(ELO::Core::Message->new(
+    to    => $client001_pid,
+    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/stats'] )
 ));
-$L->send_to($client001_pid => ELO::Core::Event->new(
-    type => $eRequest, payload => ['GET', '//server.two/stats']
+$L->enqueue_message(ELO::Core::Message->new(
+    to    => $client001_pid,
+    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/stats'] )
 ));
 
 $L->LOOP( 20 ); # 11 leaves us with a pending response

@@ -20,7 +20,7 @@ use slots (
     _process_table    => sub { +{} }, # mapping of pid to machine instance
     _monitor_table    => sub { +{} }, # mapping of pid to monitor instances
     _monitored_events => sub { +{} }, # mapping of event types to monitor instances
-    _message_bus      => sub { +[] }, # the message bus between machines
+    _message_queue    => sub { +[] }, # the queue for passing messages between machines
 );
 
 sub BUILD ($self, $) {
@@ -44,17 +44,8 @@ sub tick ($self) { $self->{_tick} }
 
 # messages
 
-sub send ($self, $message) {
-    push $self->{_message_bus}->@* => $message;
-}
-
-sub send_to ($self, $pid, $event) {
-    $self->send(
-        ELO::Core::Message->new(
-            pid   => $pid,
-            event => $event,
-        )
-    );
+sub enqueue_message ($self, $message) {
+    push $self->{_message_queue}->@* => $message;
 }
 
 # processes
@@ -112,8 +103,8 @@ sub TICK ($self) {
 
     warn '--('.sprintf('%03d', $self->{_tick}).')'.join('','-' x 70)."\n";
 
-    my @msgs = $self->{_message_bus}->@*;
-    $self->{_message_bus}->@* = ();
+    my @msgs = $self->{_message_queue}->@*;
+    $self->{_message_queue}->@* = ();
 
     my @machines_to_run;
     while (@msgs) {
@@ -126,13 +117,13 @@ sub TICK ($self) {
             }
         }
 
-        my $machine = $self->{_process_table}->{ $message->pid };
+        my $machine = $self->{_process_table}->{ $message->to };
         if ($machine) {
             $machine->enqueue_event( $message->event );
             $machine->TICK;
         }
         else {
-            die "Could not find machine for pid(".$message->pid.")"
+            die "Could not find machine for pid(".$message->to.")"
         }
     }
 

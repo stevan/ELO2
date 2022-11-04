@@ -7,12 +7,14 @@ use Data::Dumper;
 
 use parent 'UNIVERSAL::Object::Immutable';
 use slots (
-    pid   => sub {},
+    to    => sub {},
     event => sub {},
+    from  => sub {},
 );
 
-sub pid   ($self) { $self->{pid}   }
+sub to    ($self) { $self->{to}    }
 sub event ($self) { $self->{event} }
+sub from  ($self) { $self->{from}  }
 
 1;
 

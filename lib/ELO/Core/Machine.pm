@@ -93,6 +93,16 @@ sub attach_to_loop ($self, $loop) {
     $self->{_loop} = $loop; # FIXME: single assignment
 }
 
+sub send_to ($self, $pid, $event) {
+    $self->loop->enqueue_message(
+        ELO::Core::Message->new(
+            to    => $pid,
+            event => $event,
+            from  => $self->pid,
+        )
+    );
+}
+
 # protocol
 
 sub protocol ($self) { $self->{protocol} }
