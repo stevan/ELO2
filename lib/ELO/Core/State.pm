@@ -3,7 +3,8 @@ use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
 
-use Carp 'confess';
+use Carp         'confess';
+use Scalar::Util 'blessed';
 
 use Data::Dumper;
 
@@ -46,6 +47,7 @@ sub CLONE ($self) {
         handlers => { $self->{handlers}->%* },
         deferred => [ $self->{deferred}->@* ],
         on_error => { $self->{on_error}->%* },
+        is_hot   => ($self->is_hot ? 1 : 0),
     )
 }
 
@@ -98,14 +100,29 @@ sub EXIT ($self) {
 
 sub TICK ($self, $e) {
 
-    if ( $e->isa('ELO::Core::Error') ) {
-        my $catch = $self->{on_error}->{ $e->type->name };
-        $catch ||= sub { die Dumper [ WTF => $e ] };
-        $catch->( $self, $e );
+    my $err;
+    if ( !$e->isa('ELO::Core::Error') ) {
+        eval {
+            $self->{handlers}->{ $e->type->name }->( $self, $e );
+            1;
+        } or do {
+            $err = $@;
+            if (!(blessed $err && $err->isa('ELO::Core::Error'))) {
+                $err = ELO::Core::Error->new(
+                    type    => ELO::Core::ErrorType->new( name => 'E_UNKNOWN_ERROR'),
+                    payload => [ $err ],
+                );
+            }
+        };
     }
-    else {
-        # should this be wrapped in an eval?
-        $self->{handlers}->{ $e->type->name }->( $self, $e );
+    elsif ( $e->isa('ELO::Core::Error') ) {
+        $err = $e;
+    }
+
+    if ($err) {
+        my $catch = $self->{on_error}->{ $err->type->name };
+        $catch ||= sub { die Dumper [ WTF => $err ] };
+        $catch->( $self, $err );
     }
 
     return;

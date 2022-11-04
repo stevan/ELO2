@@ -195,13 +195,22 @@ my $AllRequestAreSatisfied = ELO::Core::Machine->new(
                 my $request_id = $e->payload->[1]->[0];
                 warn ">>> MONITOR(".$self->machine->pid.") GOT: eConnectionRequest id: $request_id\n";
                 $self->machine->context->{seen_requests}->{ $request_id }++;
+                die ELO::Core::Error->new(
+                    type    => ELO::Core::ErrorType->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
+                    payload => [ keys $self->machine->context->{seen_requests}->%* ],
+                ) if (scalar keys $self->machine->context->{seen_requests}->%*) > 2;
             },
             eResponse => sub ($self, $e) {
                 my $request_id = $e->payload->[0];
-                warn ">>> MONITOR(".$self->machine->pid.") GOT: eResponse request-id: $request_id.\n";
+                warn ">>> MONITOR(".$self->machine->pid.") GOT: eResponse request-id: $request_id\n";
                 delete $self->machine->context->{seen_requests}->{ $request_id };
             },
         },
+        on_error => {
+            E_MORE_THAN_TWO_REQUESTS_PENDING => sub ($self, $e) {
+                warn "!!! MONITOR(".$self->machine->pid.") GOT: E_MORE_THAN_TWO_REQUESTS_PENDING => " . Dumper $e->payload;
+            }
+        }
     )
 );
 
@@ -254,17 +263,31 @@ my $client002_pid = $L->spawn('WebClient' => (
     next_request_id => \&request_id_generator,
 ));
 
+my $client003_pid = $L->spawn('WebClient' => (
+    registry        => $service_registry_pid,
+    next_request_id => \&request_id_generator,
+));
+
 $L->send_to($client001_pid => ELO::Core::Event->new(
     type => $eRequest, payload => ['GET', '//server.one/']
 ));
 $L->send_to($client002_pid => ELO::Core::Event->new(
     type => $eRequest, payload => ['GET', '//server.two/foo']
 ));
+$L->send_to($client003_pid => ELO::Core::Event->new(
+    type => $eRequest, payload => ['GET', '//server.one/']
+));
 $L->send_to($client001_pid => ELO::Core::Event->new(
     type => $eRequest, payload => ['GET', '//server.one/bar']
 ));
 $L->send_to($client002_pid => ELO::Core::Event->new(
     type => $eRequest, payload => ['GET', '//server.one/baz']
+));
+$L->send_to($client003_pid => ELO::Core::Event->new(
+    type => $eRequest, payload => ['GET', '//server.one/foo']
+));
+$L->send_to($client003_pid => ELO::Core::Event->new(
+    type => $eRequest, payload => ['GET', '//server.two/foo']
 ));
 
 $L->send_to($client001_pid => ELO::Core::Event->new(
