@@ -82,49 +82,106 @@ my $Main = ELO::Core::Machine->new(
     start    => ELO::Core::State->new(
         name     => 'Init',
         entry    => sub ($self) {
+            warn "INIT : ".$self->machine->pid."\n";
             my $queue_pid = $self->machine->loop->spawn('Queue');
-            $self->machine->context->{start} = 0;
+            $self->machine->context->{id} = 0;
             $self->machine->context->{queue_pid} = $queue_pid;
-            $self->machine->GOTO('Load');
+            $self->machine->send_to(
+                $self->machine->context->{queue_pid},
+                ELO::Core::Event->new(
+                    type    => $eDequeueRequest,
+                    payload => [ $self->machine->pid ]
+                )
+            );
+            $self->machine->GOTO('Pump');
         }
     ),
     states => [
         ELO::Core::State->new(
-            name     => 'Load',
+            name     => 'Pump',
             entry    => sub ($self) {
+                warn "PUMP : ".$self->machine->pid."\n";
                 $self->machine->send_to(
                     $self->machine->context->{queue_pid},
-                    ELO::Core::Event->new( type => $eEnqueueRequest, payload => [ $_ ] )
-                ) foreach (10, 20, 30, 40);
-                $self->machine->GOTO('Unload');
+                    ELO::Core::Event->new(
+                        type    => $eEnqueueRequest,
+                        payload => [
+                            {
+                                id  => ++$self->machine->context->{id},
+                                val => $_,
+                            }
+                        ]
+                    )
+                ) foreach (1 .. 5);
+                $self->machine->GOTO('Consume');
             }
         ),
         ELO::Core::State->new(
-            name     => 'Unload',
+            name     => 'Consume',
             entry    => sub ($self) {
+                warn "CONSUME : ".$self->machine->pid."\n";
                 $self->machine->send_to(
                     $self->machine->context->{queue_pid},
-                    ELO::Core::Event->new( type => $eDequeueRequest, payload => [ $self->machine->pid ] )
+                    ELO::Core::Event->new(
+                        type    => $eDequeueRequest,
+                        payload => [ $self->machine->pid ]
+                    )
                 );
             },
             handlers => {
                 eDequeueResponse => sub ($self, $e) {
+                    warn "CONSUMED : ".$self->machine->pid."\n";
                     warn Dumper $e;
-                    $self->machine->GOTO('Unload');
+                    $self->machine->GOTO('Consume');
                 }
             },
             on_error => {
                 E_EMPTY_QUEUE => sub ($self, $e) {
+                    warn "EMPTY QUEUE : ".$self->machine->pid."\n";
                     warn Dumper $e;
-                    $self->machine->GOTO('Load');
+                    $self->machine->GOTO('Pump');
                 }
             }
         ),
     ]
 );
 
+my $IdsAreIncreasing = ELO::Core::Machine->new(
+    name     => 'IdsAreIncreasing',
+    protocol => [ $eDequeueResponse ],
+    start    => ELO::Core::State->new(
+        name     => 'CheckIds',
+        entry    => sub ($self) {
+            warn "!!! MONITOR(".$self->machine->pid.") ENTERING\n";
+            $self->machine->context->{last_id} = 0;
+        },
+        handlers => {
+            eDequeueResponse => sub ($self, $e) {
+                warn "!!! MONITOR(".$self->machine->pid.") GOT : eDequeueResponse => " . Dumper $e->payload->[0];
+                my $id = $e->payload->[0]->{id};
+                if ( $id > $self->machine->context->{last_id} ) {
+                    $self->machine->context->{last_id} = $id;
+                }
+                else {
+                    die ELO::Core::Error->new(
+                        type    => ELO::Core::ErrorType->new( name => 'E_ID_IS_NOT_INCREASING' ),
+                        payload => [ { last_id => $self->machine->context->{last_id}, id => $id } ],
+                    );
+                }
+            }
+        },
+        on_error => {
+            E_ID_IS_NOT_INCREASING => sub ($self, $e) {
+                warn "!!! MONITOR(".$self->machine->pid.") GOT: E_ID_IS_NOT_INCREASING => " . Dumper $e->payload->[0];
+            }
+        }
+    )
+);
+
 
 my $L = ELO::Core::Loop->new(
+    monitors => [ $IdsAreIncreasing ],
+    entry    => 'Main',
     machines => [
         $Main,
         $Queue
@@ -132,8 +189,6 @@ my $L = ELO::Core::Loop->new(
 );
 
 ## manual testing ...
-
-my $main_pid  = $L->spawn('Main');
 
 $L->LOOP(20);
 

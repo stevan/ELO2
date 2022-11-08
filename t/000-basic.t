@@ -214,11 +214,120 @@ my $AllRequestAreSatisfied = ELO::Core::Machine->new(
     )
 );
 
+my $Main = ELO::Core::Machine->new(
+    name     => 'Main',
+    protocol => [],
+    start    => ELO::Core::State->new(
+        name  => 'Init',
+        entry => sub ($self) {
+
+            my $loop = $self->machine->loop;
+
+            my $server001_pid = $loop->spawn('WebService' => ( endpoints => {
+                '/'    => [ 200, 'OK  .oO( ~ )' ],
+                '/foo' => [ 300, '>>> .oO(foo)' ],
+                '/bar' => [ 404, ':-| .oO(bar)' ],
+                '/baz' => [ 500, ':-O .oO(baz)' ],
+            }));
+
+            my $server002_pid = $loop->spawn('WebService' => ( endpoints => {
+                '/'    => [ 200, 'OK  .oO( ~ )' ],
+                '/foo' => [ 300, '>>> .oO(foo)' ],
+                '/bar' => [ 404, ':-| .oO(bar)' ],
+                '/baz' => [ 500, ':-O .oO(baz)' ],
+            }));
+
+            my $service_registry_pid = $loop->spawn('ServiceRegistry' => (
+                registry => {
+                    'server.one' => $server001_pid,
+                    'server.two' => $server002_pid,
+                }
+            ));
+
+            my sub request_id_generator {
+                state $current_request_id = 0;
+                sprintf 'req:%d' => ++$current_request_id;
+            }
+
+            my $client001_pid = $loop->spawn('WebClient' => (
+                registry        => $service_registry_pid,
+                next_request_id => \&request_id_generator,
+            ));
+
+            my $client002_pid = $loop->spawn('WebClient' => (
+                registry        => $service_registry_pid,
+                next_request_id => \&request_id_generator,
+            ));
+
+            my $client003_pid = $loop->spawn('WebClient' => (
+                registry        => $service_registry_pid,
+                next_request_id => \&request_id_generator,
+            ));
+
+            $self->machine->context->{clients} = [
+                $client001_pid,
+                $client002_pid,
+                $client003_pid
+            ];
+
+            $self->machine->GOTO('Pump');
+        },
+    ),
+    states => [
+        ELO::Core::State->new(
+            name  => 'Pump',
+            entry => sub ($self) {
+                my ($client001_pid,
+                    $client002_pid,
+                    $client003_pid) = $self->machine->context->{clients}->@*;
+
+                $self->machine->send_to(
+                    $client001_pid,
+                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
+                );
+                $self->machine->send_to(
+                    $client002_pid,
+                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
+                );
+                $self->machine->send_to(
+                    $client003_pid,
+                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
+                );
+                $self->machine->send_to(
+                    $client001_pid,
+                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/bar'] )
+                );
+                $self->machine->send_to(
+                    $client002_pid,
+                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/baz'] )
+                );
+                $self->machine->send_to(
+                    $client003_pid,
+                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/foo'] )
+                );
+                $self->machine->send_to(
+                    $client003_pid,
+                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
+                );
+
+                $self->machine->send_to(
+                    $client001_pid,
+                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/stats'] )
+                );
+                $self->machine->send_to(
+                    $client001_pid,
+                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/stats'] )
+                );
+            }
+        )
+    ]
+);
+
 my $L = ELO::Core::Loop->new(
-    monitors => [
-        $AllRequestAreSatisfied
-    ],
+    monitors => [ $AllRequestAreSatisfied ],
+    entry    => 'Main',
     machines => [
+        $Main,
         $Server,
         $Client,
         $ServiceRegistry,
@@ -226,85 +335,6 @@ my $L = ELO::Core::Loop->new(
 );
 
 ## manual testing ...
-
-my $server001_pid = $L->spawn('WebService' => ( endpoints => {
-    '/'    => [ 200, 'OK  .oO( ~ )' ],
-    '/foo' => [ 300, '>>> .oO(foo)' ],
-    '/bar' => [ 404, ':-| .oO(bar)' ],
-    '/baz' => [ 500, ':-O .oO(baz)' ],
-}));
-
-my $server002_pid = $L->spawn('WebService' => ( endpoints => {
-    '/'    => [ 200, 'OK  .oO( ~ )' ],
-    '/foo' => [ 300, '>>> .oO(foo)' ],
-    '/bar' => [ 404, ':-| .oO(bar)' ],
-    '/baz' => [ 500, ':-O .oO(baz)' ],
-}));
-
-my $service_registry_pid = $L->spawn('ServiceRegistry' => (
-    registry => {
-        'server.one' => $server001_pid,
-        'server.two' => $server002_pid,
-    }
-));
-
-my sub request_id_generator {
-    state $current_request_id = 0;
-    sprintf 'req:%d' => ++$current_request_id;
-}
-
-my $client001_pid = $L->spawn('WebClient' => (
-    registry        => $service_registry_pid,
-    next_request_id => \&request_id_generator,
-));
-
-my $client002_pid = $L->spawn('WebClient' => (
-    registry        => $service_registry_pid,
-    next_request_id => \&request_id_generator,
-));
-
-my $client003_pid = $L->spawn('WebClient' => (
-    registry        => $service_registry_pid,
-    next_request_id => \&request_id_generator,
-));
-
-$L->enqueue_message(ELO::Core::Message->new(
-    to    => $client001_pid,
-    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
-));
-$L->enqueue_message(ELO::Core::Message->new(
-    to    => $client002_pid,
-    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
-));
-$L->enqueue_message(ELO::Core::Message->new(
-    to    => $client003_pid,
-    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
-));
-$L->enqueue_message(ELO::Core::Message->new(
-    to    => $client001_pid,
-    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/bar'] )
-));
-$L->enqueue_message(ELO::Core::Message->new(
-    to    => $client002_pid,
-    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/baz'] )
-));
-$L->enqueue_message(ELO::Core::Message->new(
-    to    => $client003_pid,
-    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/foo'] )
-));
-$L->enqueue_message(ELO::Core::Message->new(
-    to    => $client003_pid,
-    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
-));
-
-$L->enqueue_message(ELO::Core::Message->new(
-    to    => $client001_pid,
-    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/stats'] )
-));
-$L->enqueue_message(ELO::Core::Message->new(
-    to    => $client001_pid,
-    event => ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/stats'] )
-));
 
 $L->LOOP( 20 ); # 11 leaves us with a pending response
 

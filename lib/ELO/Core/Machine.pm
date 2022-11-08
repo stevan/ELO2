@@ -218,6 +218,8 @@ sub TICK ($self) {
     my $q = $self->queue;
 
     until ($q->is_empty) {
+        #warn Dumper $q;
+
         my $e = $self->dequeue_event;
         last unless defined $e;
 

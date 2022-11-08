@@ -11,6 +11,7 @@ use List::Util 'uniq';
 
 use parent 'UNIVERSAL::Object';
 use slots (
+    entry             => sub {},      # the entry machine
     machines          => sub { +[] }, # a set of Machine process objects
     monitors          => sub { +[] }, # a set of Machine monitor objects
     # ...
@@ -80,6 +81,8 @@ sub START ($self) {
         $monitor->attach_to_loop( $self );
         $monitor->START;
     }
+
+    $self->spawn( $self->{entry} );
 }
 
 sub STOP ($self) {
