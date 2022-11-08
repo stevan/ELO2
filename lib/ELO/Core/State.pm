@@ -10,6 +10,7 @@ use Data::Dumper;
 
 use constant IDLE   => 1;
 use constant ACTIVE => 2;
+# add starting, stopping states as well, similar to Machine
 
 use constant HOT  => 1;
 use constant COLD => 2;
@@ -103,6 +104,8 @@ sub TICK ($self, $e) {
     my $err;
     if ( !$e->isa('ELO::Core::Error') ) {
         eval {
+            die "Could not find handler for type(".$e->type->name.")"
+                unless exists $self->{handlers}->{ $e->type->name };
             $self->{handlers}->{ $e->type->name }->( $self, $e );
             1;
         } or do {
