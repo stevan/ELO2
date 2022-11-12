@@ -12,7 +12,7 @@ use slots (
     inbox => sub { +[] },
 );
 
-sub is_empty ($self, @deferred) {
+sub is_empty ($self) {
     (scalar $self->{inbox}->@*) == 0
 }
 

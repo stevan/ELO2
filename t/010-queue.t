@@ -9,6 +9,60 @@ use Test::More;
 
 use ELO::Core;
 
+=pod
+
+protocol QUEUE => sub {
+    event eEnqueueRequest  => tuple( Any() );
+    event eDequeueRequest  => tuple( PID() );
+    event eDequeueResponse => tuple( Any() );
+
+    error E_EMPTY_QUEUE => unit();
+}
+
+machine Queue : QUEUE {
+    has '@!queue';
+
+    start state Init => sub {
+        entry sub ($self) {
+            go_to('Empty')
+        };
+    }
+
+    state Empty => sub {
+        defer 'eDequeueRequest';
+
+        on eEnqueueRequest => sub ($self, $e) {
+            push get('@!queue') => $e->payload;
+            go_to('Ready');
+        };
+    }
+
+    state Ready {
+
+        on eEnqueueRequest => sub ($self, $e) {
+            push get('@!queue') => $e->payload;
+        };
+
+        on eDequeueRequest => sub ($self, $e) {
+            if (scalar get('@.queue') == 0) {
+                send_to(
+                    $e->payload->[0],
+                    E_EMPTY_QUEUE()
+                );
+                go_to('Empty');
+            }
+            else {
+                send_to(
+                    $e->payload->[0],
+                    eDequeueResponse(shift get('@.queue'));
+                );
+            }
+        };
+    }
+}
+
+=cut
+
 ## Event Types
 
 my $eEnqueueRequest = ELO::Core::EventType->new( name => 'eEnqueueRequest' );
@@ -27,7 +81,7 @@ my $Queue = ELO::Core::Machine->new(
         name     => 'Init',
         entry    => sub ($self) {
             warn "INIT : entry ".$self->machine->pid."\n";
-            $self->machine->context->{Q} = [];
+            $self->machine->context->{Q} = ELO::Core::Queue->new;
             $self->machine->GOTO('Empty');
         }
     ),
@@ -39,7 +93,7 @@ my $Queue = ELO::Core::Machine->new(
             handlers => {
                 eEnqueueRequest => sub ($self, $e) {
                     warn "EMPTY : eEnqueueRequest ".$self->machine->pid."\n";
-                    push $self->machine->context->{Q}->@*, $e->payload->@*;
+                    $self->machine->context->{Q}->enqueue( $e->payload );
                     $self->machine->GOTO('Ready');
                 }
             }
@@ -50,23 +104,24 @@ my $Queue = ELO::Core::Machine->new(
             handlers => {
                 eEnqueueRequest => sub ($self, $e) {
                     warn "READY : eEnqueueRequest ".$self->machine->pid."\n";
-                    push $self->machine->context->{Q}->@*, $e->payload->@*;
+                    $self->machine->context->{Q}->enqueue( $e->payload );
                 },
                 eDequeueRequest => sub ($self, $e) {
+                    my ($caller, $deferred) = $e->payload->@*;
                     warn "READY : eDequeueRequest ".$self->machine->pid."\n";
-                    if (scalar $self->machine->context->{Q}->@* == 0) {
+                    if ($self->machine->context->{Q}->is_empty) {
                         $self->machine->send_to(
-                            $e->payload->@*,
+                            $caller,
                             ELO::Core::Error->new( type => $E_EMPTY_QUEUE )
                         );
                         $self->machine->GOTO('Empty');
                     }
                     else {
                         $self->machine->send_to(
-                            $e->payload->@*,
+                            $caller,
                             ELO::Core::Event->new(
                                 type    => $eDequeueResponse,
-                                payload => [ shift $self->machine->context->{Q}->@* ]
+                                payload => [ $self->machine->context->{Q}->dequeue ]
                             )
                         );
                     }
@@ -75,6 +130,30 @@ my $Queue = ELO::Core::Machine->new(
         )
     ]
 );
+
+
+=pod
+
+machine Main () {
+    has $.id        : Int = 0;
+    has $.queue_pid : PID;
+
+    start state Init {
+        entry ($self) {
+            $.queue_pid = spawn('Queue');
+            send_to(
+                $.queue_pid,
+                eDequeueRequest( $self->machine->pid ),
+            );
+            go_to Pump;
+        }
+    }
+
+    state Pump {}
+    state Consume {}
+}
+
+=cut
 
 my $Main = ELO::Core::Machine->new(
     name     => 'Main',
