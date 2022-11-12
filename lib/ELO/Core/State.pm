@@ -8,10 +8,6 @@ use Scalar::Util 'blessed';
 
 use Data::Dumper;
 
-use constant IDLE   => 1;
-use constant ACTIVE => 2;
-# add starting, stopping states as well, similar to Machine
-
 use constant HOT  => 1;
 use constant COLD => 2;
 
@@ -27,12 +23,10 @@ use slots (
     on_error => sub { +{} }, # Hash<ErrorType, &> error handlers, keyed by error type
     # ...
     _machine     => sub {}, # machine this state is attached to
-    _status      => sub {}, # the status, either IDLE or ACTIVE
     _temperature => sub {}, # is this HOT or COLD
 );
 
 sub BUILD ($self, $params) {
-    $self->{_status} = IDLE;
 
     # it can only be marked HOT, otherwise it is COLD
     $self->{_temperature} = $params->{is_hot} ? HOT : COLD;
@@ -65,11 +59,6 @@ sub attach_to_machine ($self, $machine) {
     $self->{_machine} = $machine; # FIXME: single assignment
 }
 
-# status
-
-sub is_active ($self) { $self->{_status} == ACTIVE }
-sub is_idle   ($self) { $self->{_status} == IDLE   }
-
 # temperature
 
 sub is_hot  ($self) { $self->{_temperature} == HOT  }
@@ -84,7 +73,6 @@ sub ENTER ($self) {
         $self->{entry}->( $self );
     }
 
-    $self->{_status} = ACTIVE;
     return;
 }
 
@@ -95,7 +83,6 @@ sub EXIT ($self) {
         $self->{exit}->( $self );
     }
 
-    $self->{_status} = IDLE;
     return;
 }
 
