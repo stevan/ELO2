@@ -4,9 +4,7 @@ use warnings;
 use experimental 'signatures', 'postderef';
 
 use parent 'UNIVERSAL::Object::Immutable';
-use slots (
-    msg => sub {},
-);
+use slots;
 
 sub throw ($class, @params) {
     die $class->new( @params );

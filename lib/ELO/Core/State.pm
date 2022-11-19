@@ -13,7 +13,7 @@ use constant COLD => 2;
 
 use constant DEBUG => $ENV{DEBUG} // 0;
 
-use parent 'UNIVERSAL::Object';
+use parent 'UNIVERSAL::Object::Immutable';
 use slots (
     name     => sub {},      # human friendly name
     entry    => sub {},      # the entry callback, called when a state is ENTERed
