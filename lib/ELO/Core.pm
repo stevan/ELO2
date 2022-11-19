@@ -24,10 +24,11 @@ __END__
 A protocol is a set of EventTypes and ErrorTypes that a given machine understands
 
 A Loop has many Machine instances
-A Loop has a protocol and a Message queue
+A Loop has a Message queue for delivering message to machines
 
 Each Machine instance has a PID address
 Each Machine instance has an Event queue
+Each Machine instance has one or more State instances
 
 When a loop begins
     messages are processed

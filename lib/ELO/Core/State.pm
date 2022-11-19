@@ -22,7 +22,6 @@ use slots (
     deferred => sub { +[] }, # Array<EventType> events that should be deferred in this state
     on_error => sub { +{} }, # Hash<ErrorType, &> error handlers, keyed by error type
     # ...
-    _machine     => sub {}, # machine this state is attached to
     _temperature => sub {}, # is this HOT or COLD
 );
 
@@ -51,14 +50,6 @@ sub CLONE ($self) {
 sub name     ($self) { $self->{name}     }
 sub deferred ($self) { $self->{deferred} }
 
-# attached machine
-
-sub machine ($self) { $self->{_machine} }
-
-sub attach_to_machine ($self, $machine) {
-    $self->{_machine} = $machine; # FIXME: single assignment
-}
-
 # temperature
 
 sub is_hot  ($self) { $self->{_temperature} == HOT  }
@@ -66,58 +57,25 @@ sub is_cold ($self) { $self->{_temperature} == COLD }
 
 # controls
 
-sub ENTER ($self) {
+sub entry ($self) { $self->{entry} }
+sub exit  ($self) { $self->{exit} }
 
-    if ($self->{entry}) {
-        # wrap this in an eval, .. but do what with the error?
-        $self->{entry}->( $self );
+sub event_handler_for ($self, $e) {
+    my $e_name = $e->type->name;
+
+    if ($e->isa('ELO::Core::Error')) {
+        if (exists $self->{on_error}->{ $e_name }) {
+            return $self->{on_error}->{ $e_name };
+        }
     }
-
-    return;
+    elsif (exists $self->{handlers}->{ $e_name }) {
+        return $self->{handlers}->{ $e_name };
+    }
+    else {
+        # XXX - should this throw an exception?
+        return;
+    }
 }
-
-sub EXIT ($self) {
-
-    if ($self->{exit}) {
-        # wrap this in an eval, .. but do what with the error?
-        $self->{exit}->( $self );
-    }
-
-    return;
-}
-
-sub TICK ($self, $e) {
-
-    my $err;
-    if ( !$e->isa('ELO::Core::Error') ) {
-        eval {
-            die "Could not find handler for type(".$e->type->name.")"
-                unless exists $self->{handlers}->{ $e->type->name };
-            $self->{handlers}->{ $e->type->name }->( $self, $e );
-            1;
-        } or do {
-            $err = $@;
-            if (!(blessed $err && $err->isa('ELO::Core::Error'))) {
-                $err = ELO::Core::Error->new(
-                    type    => ELO::Core::ErrorType->new( name => 'E_UNKNOWN_ERROR'),
-                    payload => [ $err ],
-                );
-            }
-        };
-    }
-    elsif ( $e->isa('ELO::Core::Error') ) {
-        $err = $e;
-    }
-
-    if ($err) {
-        my $catch = $self->{on_error}->{ $err->type->name };
-        $catch ||= sub { die Dumper [ WTF => $err ] };
-        $catch->( $self, $err );
-    }
-
-    return;
-}
-
 
 1;
 

@@ -20,79 +20,77 @@ my $Bounce = ELO::Core::Machine->new(
     protocol => [ $eBeginBounce, $eFinishBounce ],
     start    => ELO::Core::State->new(
         name     => 'Init',
-        entry    => sub ($self) {
-            my $machine = $self->machine;
-            warn $machine->pid." : INIT\n";
+        entry    => sub ($m) {
+            warn $m->pid." : INIT\n";
         },
         handlers => {
-            eBeginBounce => sub ($self, $e) {
-                my $machine = $self->machine;
-                $machine->context->{caller}  = $e->payload->[0];
-                $machine->context->{bounces} = $e->payload->[1];
+            eBeginBounce => sub ($m, $e) {
+                $m->context->{caller}  = $e->payload->[0];
+                $m->context->{bounces} = $e->payload->[1];
+                $m->context->{height}  = $e->payload->[2];
 
-                warn $machine->pid." : eBeginBounce (".(join ", " =>
-                    $machine->context->{caller},
-                    $machine->context->{bounces})
+                warn $m->pid." : eBeginBounce (".(join ", " =>
+                    $m->context->{caller},
+                    $m->context->{bounces},
+                    $m->context->{height})
                 .")\n";
 
-                $machine->send_to(
-                    $machine->pid,
-                    ELO::Core::Event->new( type => $eBounceUp )
-                );
-                $machine->GOTO('Up');
+                $m->set_alarm( $m->context->{height} => (
+                    $m->pid, ELO::Core::Event->new( type => $eBounceUp )
+                ));
+                $m->GOTO('Up');
             }
         }
     ),
     states => [
         ELO::Core::State->new(
             name     => 'Up',
-            entry    => sub ($self) {
-                my $machine = $self->machine;
-                warn $machine->pid." : UP\n";
+            entry    => sub ($m) {
+                warn $m->pid." : UP entering\n";
             },
             handlers => {
-                eBounceUp => sub ($self, $e) {
-                    my $machine = $self->machine;
-                    warn $machine->pid." : eBounceUp\n";
-                    $machine->send_to(
-                        $machine->pid,
-                        ELO::Core::Event->new( type => $eBounceDown )
+                eBounceUp => sub ($m, $e) {
+                    warn $m->pid." : UP handling -> eBounceUp\n";
+                    $m->set_alarm(
+                        $m->context->{height} => (
+                            $m->pid,
+                            ELO::Core::Event->new( type => $eBounceDown )
+                        )
                     );
-                    $machine->GOTO('Down');
+                    $m->GOTO('Down');
                 }
             }
         ),
         ELO::Core::State->new(
             name     => 'Down',
-            entry    => sub ($self) {
-                my $machine = $self->machine;
-                warn $machine->pid." : DOWN\n";
+            entry    => sub ($m) {
+                warn $m->pid." : DOWN entering\n";
             },
             handlers => {
-                eBounceDown => sub ($self, $e) {
-                    my $machine = $self->machine;
-                    warn $machine->pid." : eBounceDown (".$machine->context->{bounces}.")\n";
-                    $machine->context->{bounces}--;
-                    if ( $machine->context->{bounces} > 0 ) {
-                        $machine->send_to(
-                            $machine->pid,
-                            ELO::Core::Event->new( type => $eBounceUp )
+                eBounceDown => sub ($m, $e) {
+                    warn $m->pid." : DOWN handling -> eBounceDown (".$m->context->{bounces}.")\n";
+                    $m->context->{bounces}--;
+                    if ( $m->context->{bounces} > 0 ) {
+                        $m->set_alarm(
+                            $m->context->{height} => (
+                                $m->pid,
+                                ELO::Core::Event->new( type => $eBounceUp )
+                            )
                         );
-                        $machine->GOTO('Up');
+                        $m->GOTO('Up');
                     }
                     else {
-                        $machine->GOTO('Finish');
+                        $m->GOTO('Finish');
                     }
                 }
             }
         ),
         ELO::Core::State->new(
             name     => 'Finish',
-            entry    => sub ($self) {
-                my $machine = $self->machine;
-                warn $machine->pid." : FINISH\n";
-                $machine->send_to(
-                    $machine->context->{caller},
+            entry    => sub ($m) {
+                warn $m->pid." : FINISH\n";
+                $m->send_to(
+                    $m->context->{caller},
                     ELO::Core::Event->new( type => $eFinishBounce )
                 );
             }
@@ -105,25 +103,33 @@ my $Main = ELO::Core::Machine->new(
     protocol => [],
     start    => ELO::Core::State->new(
         name     => 'Init',
-        entry    => sub ($self) {
-            my $machine = $self->machine;
-            warn $machine->pid." : INIT\n";
+        entry    => sub ($m) {
+            warn $m->pid." : INIT\n";
 
-            my $bounce_001 = $self->machine->loop->spawn('Bounce');
-            my $bounce_002 = $self->machine->loop->spawn('Bounce');
+            my $bounce_001 = $m->loop->spawn('Bounce');
+            my $bounce_002 = $m->loop->spawn('Bounce');
 
-            warn $self->machine->pid . " : Bounce Begin\n";
-            $self->machine->send_to(
-                $_,
+            warn $m->pid . " : Bounce Begin\n";
+
+            $m->send_to(
+                $bounce_001,
                 ELO::Core::Event->new(
                     type    => $eBeginBounce,
-                    payload => [ $self->machine->pid, 5 ]
+                    payload => [ $m->pid, 2, 6 ]
                 )
-            ) foreach ($bounce_001, $bounce_002);
+            );
+
+            $m->send_to(
+                $bounce_002,
+                ELO::Core::Event->new(
+                    type    => $eBeginBounce,
+                    payload => [ $m->pid, 2, 3 ]
+                )
+            );
         },
         handlers => {
-            eFinishBounce => sub ($self, $e) {
-                warn $self->machine->pid . " : Bounce Finished\n";
+            eFinishBounce => sub ($m, $e) {
+                warn $m->pid . " : Bounce Finished\n";
             }
         }
     )
@@ -141,7 +147,7 @@ my $L = ELO::Core::Loop->new(
 
 ## manual testing ...
 
-$L->LOOP(20);
+$L->LOOP(50);
 
 
 done_testing;

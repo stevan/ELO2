@@ -9,60 +9,6 @@ use Test::More;
 
 use ELO::Core;
 
-=pod
-
-protocol QUEUE => sub {
-    event eEnqueueRequest  => tuple( Any() );
-    event eDequeueRequest  => tuple( PID() );
-    event eDequeueResponse => tuple( Any() );
-
-    error E_EMPTY_QUEUE => unit();
-}
-
-machine Queue : QUEUE {
-    has '@!queue';
-
-    start state Init => sub {
-        entry sub ($self) {
-            go_to('Empty')
-        };
-    }
-
-    state Empty => sub {
-        defer 'eDequeueRequest';
-
-        on eEnqueueRequest => sub ($self, $e) {
-            push get('@!queue') => $e->payload;
-            go_to('Ready');
-        };
-    }
-
-    state Ready {
-
-        on eEnqueueRequest => sub ($self, $e) {
-            push get('@!queue') => $e->payload;
-        };
-
-        on eDequeueRequest => sub ($self, $e) {
-            if (scalar get('@.queue') == 0) {
-                send_to(
-                    $e->payload->[0],
-                    E_EMPTY_QUEUE()
-                );
-                go_to('Empty');
-            }
-            else {
-                send_to(
-                    $e->payload->[0],
-                    eDequeueResponse(shift get('@.queue'));
-                );
-            }
-        };
-    }
-}
-
-=cut
-
 ## Event Types
 
 my $eEnqueueRequest = ELO::Core::EventType->new( name => 'eEnqueueRequest' );
@@ -79,49 +25,49 @@ my $Queue = ELO::Core::Machine->new(
     protocol => [ $eEnqueueRequest, $eDequeueRequest, $eDequeueResponse ],
     start    => ELO::Core::State->new(
         name     => 'Init',
-        entry    => sub ($self) {
-            warn "INIT : entry ".$self->machine->pid."\n";
-            $self->machine->context->{Q} = ELO::Core::Queue->new;
-            $self->machine->GOTO('Empty');
+        entry    => sub ($m) {
+            warn "INIT : entry ".$m->pid."\n";
+            $m->context->{Q} = ELO::Core::Queue->new;
+            $m->GOTO('Empty');
         }
     ),
     states => [
         ELO::Core::State->new(
             name     => 'Empty',
             deferred => [ $eDequeueRequest ],
-            entry    => sub ($self) { warn "EMPTY : entry ".$self->machine->pid."\n" },
+            entry    => sub ($m) { warn "EMPTY : entry ".$m->pid."\n" },
             handlers => {
-                eEnqueueRequest => sub ($self, $e) {
-                    warn "EMPTY : eEnqueueRequest ".$self->machine->pid."\n";
-                    $self->machine->context->{Q}->enqueue( $e->payload );
-                    $self->machine->GOTO('Ready');
+                eEnqueueRequest => sub ($m, $e) {
+                    warn "EMPTY : eEnqueueRequest ".$m->pid."\n";
+                    $m->context->{Q}->enqueue( $e->payload );
+                    $m->GOTO('Ready');
                 }
             }
         ),
         ELO::Core::State->new(
             name     => 'Ready',
-            entry    => sub ($self) { warn "READY : entry ".$self->machine->pid."\n" },
+            entry    => sub ($m) { warn "READY : entry ".$m->pid."\n" },
             handlers => {
-                eEnqueueRequest => sub ($self, $e) {
-                    warn "READY : eEnqueueRequest ".$self->machine->pid."\n";
-                    $self->machine->context->{Q}->enqueue( $e->payload );
+                eEnqueueRequest => sub ($m, $e) {
+                    warn "READY : eEnqueueRequest ".$m->pid."\n";
+                    $m->context->{Q}->enqueue( $e->payload );
                 },
-                eDequeueRequest => sub ($self, $e) {
+                eDequeueRequest => sub ($m, $e) {
                     my ($caller, $deferred) = $e->payload->@*;
-                    warn "READY : eDequeueRequest ".$self->machine->pid."\n";
-                    if ($self->machine->context->{Q}->is_empty) {
-                        $self->machine->send_to(
+                    warn "READY : eDequeueRequest ".$m->pid."\n";
+                    if ($m->context->{Q}->is_empty) {
+                        $m->send_to(
                             $caller,
                             ELO::Core::Error->new( type => $E_EMPTY_QUEUE )
                         );
-                        $self->machine->GOTO('Empty');
+                        $m->GOTO('Empty');
                     }
                     else {
-                        $self->machine->send_to(
+                        $m->send_to(
                             $caller,
                             ELO::Core::Event->new(
                                 type    => $eDequeueResponse,
-                                payload => [ $self->machine->context->{Q}->dequeue ]
+                                payload => [ $m->context->{Q}->dequeue ]
                             )
                         );
                     }
@@ -132,93 +78,70 @@ my $Queue = ELO::Core::Machine->new(
 );
 
 
-=pod
-
-machine Main () {
-    has $.id        : Int = 0;
-    has $.queue_pid : PID;
-
-    start state Init {
-        entry ($self) {
-            $.queue_pid = spawn('Queue');
-            send_to(
-                $.queue_pid,
-                eDequeueRequest( $self->machine->pid ),
-            );
-            go_to Pump;
-        }
-    }
-
-    state Pump {}
-    state Consume {}
-}
-
-=cut
-
 my $Main = ELO::Core::Machine->new(
     name     => 'Main',
     protocol => [],
     start    => ELO::Core::State->new(
         name     => 'Init',
-        entry    => sub ($self) {
-            warn "INIT : ".$self->machine->pid."\n";
-            my $queue_pid = $self->machine->loop->spawn('Queue');
-            $self->machine->context->{id} = 0;
-            $self->machine->context->{queue_pid} = $queue_pid;
-            $self->machine->send_to(
-                $self->machine->context->{queue_pid},
+        entry    => sub ($m) {
+            warn "INIT : ".$m->pid."\n";
+            my $queue_pid = $m->loop->spawn('Queue');
+            $m->context->{id} = 0;
+            $m->context->{queue_pid} = $queue_pid;
+            $m->send_to(
+                $m->context->{queue_pid},
                 ELO::Core::Event->new(
                     type    => $eDequeueRequest,
-                    payload => [ $self->machine->pid ]
+                    payload => [ $m->pid ]
                 )
             );
-            $self->machine->GOTO('Pump');
+            $m->GOTO('Pump');
         }
     ),
     states => [
         ELO::Core::State->new(
             name     => 'Pump',
-            entry    => sub ($self) {
-                warn "PUMP : ".$self->machine->pid."\n";
-                $self->machine->send_to(
-                    $self->machine->context->{queue_pid},
+            entry    => sub ($m) {
+                warn "PUMP : ".$m->pid."\n";
+                $m->send_to(
+                    $m->context->{queue_pid},
                     ELO::Core::Event->new(
                         type    => $eEnqueueRequest,
                         payload => [
                             {
-                                id  => ++$self->machine->context->{id},
+                                id  => ++$m->context->{id},
                                 val => $_,
                             }
                         ]
                     )
                 ) foreach (1 .. 5);
-                $self->machine->GOTO('Consume');
+                $m->GOTO('Consume');
             }
         ),
         ELO::Core::State->new(
             name     => 'Consume',
-            entry    => sub ($self) {
-                warn "CONSUME : ".$self->machine->pid."\n";
-                $self->machine->send_to(
-                    $self->machine->context->{queue_pid},
+            entry    => sub ($m) {
+                warn "CONSUME : ".$m->pid."\n";
+                $m->send_to(
+                    $m->context->{queue_pid},
                     ELO::Core::Event->new(
                         type    => $eDequeueRequest,
-                        payload => [ $self->machine->pid ]
+                        payload => [ $m->pid ]
                     )
                 );
             },
             handlers => {
-                eDequeueResponse => sub ($self, $e) {
-                    warn "CONSUMED : ".$self->machine->pid."\n";
+                eDequeueResponse => sub ($m, $e) {
+                    warn "CONSUMED : ".$m->pid."\n";
                     warn Dumper $e;
-                    $self->machine->GOTO('Consume');
+                    $m->GOTO('Consume');
                 }
             },
             on_error => {
-                E_EMPTY_QUEUE => sub ($self, $e) {
-                    warn "EMPTY QUEUE : ".$self->machine->pid."\n";
+                E_EMPTY_QUEUE => sub ($m, $e) {
+                    warn "EMPTY QUEUE : ".$m->pid."\n";
                     warn Dumper $e;
-                    $self->machine->GOTO('Pump');
+                    $m->GOTO('Pump');
                 }
             }
         ),
@@ -230,28 +153,28 @@ my $IdsAreIncreasing = ELO::Core::Machine->new(
     protocol => [ $eDequeueResponse ],
     start    => ELO::Core::State->new(
         name     => 'CheckIds',
-        entry    => sub ($self) {
-            warn "!!! MONITOR(".$self->machine->pid.") ENTERING\n";
-            $self->machine->context->{last_id} = 0;
+        entry    => sub ($m) {
+            warn "!!! MONITOR(".$m->pid.") ENTERING\n";
+            $m->context->{last_id} = 0;
         },
         handlers => {
-            eDequeueResponse => sub ($self, $e) {
-                warn "!!! MONITOR(".$self->machine->pid.") GOT : eDequeueResponse => " . Dumper $e->payload->[0];
-                my $id = $e->payload->[0]->{id};
-                if ( $id > $self->machine->context->{last_id} ) {
-                    $self->machine->context->{last_id} = $id;
+            eDequeueResponse => sub ($m, $e) {
+                warn "!!! MONITOR(".$m->pid.") GOT : eDequeueResponse => " . Dumper $e->payload->[0];
+                my $id = $e->payload->[0]->[0]->{id};
+                if ( $id > $m->context->{last_id} ) {
+                    $m->context->{last_id} = $id;
                 }
                 else {
                     die ELO::Core::Error->new(
                         type    => ELO::Core::ErrorType->new( name => 'E_ID_IS_NOT_INCREASING' ),
-                        payload => [ { last_id => $self->machine->context->{last_id}, id => $id } ],
+                        payload => [ { last_id => $m->context->{last_id}, id => $id } ],
                     );
                 }
             }
         },
         on_error => {
-            E_ID_IS_NOT_INCREASING => sub ($self, $e) {
-                warn "!!! MONITOR(".$self->machine->pid.") GOT: E_ID_IS_NOT_INCREASING => " . Dumper $e->payload->[0];
+            E_ID_IS_NOT_INCREASING => sub ($m, $s, $e) {
+                warn "!!! MONITOR(".$m->pid.") GOT: E_ID_IS_NOT_INCREASING => " . Dumper $e->payload->[0];
             }
         }
     )

@@ -8,6 +8,10 @@ use Carp 'confess';
 use Data::Dumper;
 
 use ELO::Core::Queue;
+use ELO::Core::Event;
+
+use ELO::Core::Exception::TransitionState;
+use ELO::Core::Exception::RaiseEvent;
 
 use constant PROCESS => 1; # this machine is being used as a process
 use constant MONITOR => 2; # this machine is being used as a monitor
@@ -40,7 +44,6 @@ use slots (
     _queue     => sub {},      # the event queue
     _status    => sub {},      # the various machine status
     _active    => sub {},      # the currently active state
-    _next      => sub {},      # the state to be transitioned to
     _state_map => sub { +{} }, # a mapping of state-name to state
 );
 
@@ -50,7 +53,6 @@ sub BUILD ($self, $params) {
     $self->{_queue} = ELO::Core::Queue->new;
 
     foreach my $state ( $self->all_states ) {
-        $state->attach_to_machine( $self );
         $self->{_state_map}->{ $state->name } = $state;
     }
 
@@ -95,6 +97,17 @@ sub attach_to_loop ($self, $loop) {
 
 sub send_to ($self, $pid, $event) {
     $self->loop->enqueue_message(
+        ELO::Core::Message->new(
+            to    => $pid,
+            event => $event,
+            from  => $self->pid,
+        )
+    );
+}
+
+sub set_alarm ($self, $delay, $pid, $event) {
+    $self->loop->set_alarm(
+        $delay,
         ELO::Core::Message->new(
             to    => $pid,
             event => $event,
@@ -156,28 +169,82 @@ sub states ($self) { $self->{states} }
 
 sub all_states ($self) { ($self->{start}, $self->{states}->@*) }
 
-sub transition_state ($self) {
-    if ( $self->{_next} ) {
-        $self->exit_active_state;
+# the trampoline
 
-        my $next = $self->{_next};
-        $self->{_next} = undef;
-
-        $self->enter_active_state($next);
-    }
+sub trampoline ($self, $f, $args, %options) {
+    eval {
+        $f->(@$args);
+        1;
+    } or do {
+        my $e = $@;
+        if ($options{can_transition} && Scalar::Util::blessed($e) && $e->isa('ELO::Core::Exception::TransitionState')) {
+            $self->transition_to_state( $e->next_state );
+        }
+        elsif ($options{can_raise_event} && Scalar::Util::blessed($e) && $e->isa('ELO::Core::Exception::RaiseEvent')) {
+            $self->handle_event( $e->event );
+        }
+        else {
+            die $e;
+        }
+    };
 }
 
-sub has_active_state ($self) { !! $self->{_active} }
-
-sub enter_active_state ($self, $state) {
-    $self->{_active} = $state;
-    $self->{_active}->ENTER;
-    $self->transition_state;
+sub active_state       ($self) {    $self->{_active}         }
+sub has_active_state   ($self) { !! $self->{_active}         }
+sub clear_active_state ($self) {    $self->{_active} = undef }
+sub set_active_state   ($self, $next_state) {
+    $self->{_active} = $next_state;
 }
 
 sub exit_active_state ($self) {
-    $self->{_active}->EXIT;
-    $self->{_active} = undef;
+    return unless $self->has_active_state;
+    if ( my $exit = $self->active_state->exit ) {
+        $self->trampoline(
+            $exit,     # call exit function
+            [ $self ], # with $machine
+            (          # the options
+                can_transition  => 0,
+                can_raise_event => 0,
+            )
+        );
+    }
+    $self->clear_active_state;
+}
+
+sub enter_active_state ($self) {
+    if ( my $entry = $self->active_state->entry ) {
+        $self->trampoline(
+            $entry,    # call entry function
+            [ $self ], # with $machine
+            (          # the options
+                can_transition  => 1,
+                can_raise_event => 0,
+            )
+        );
+    }
+}
+
+sub transition_to_state ($self, $next_state) {
+    $self->exit_active_state;
+    $self->set_active_state($next_state);
+    $self->enter_active_state;
+}
+
+sub handle_event ($self, $e) {
+    if ( my $handler = $self->active_state->event_handler_for( $e ) ) {
+        $self->trampoline(
+            $handler,      # the handler for this event
+            [ $self, $e ], # the args to the handler
+            (              # the options
+                can_transition  => 1,
+                can_raise_event => 1
+            )
+        );
+    }
+    else {
+        use Data::Dumper;
+        confess "DROPPED EVENT!" . Dumper($e);
+    }
 }
 
 ## Machine controls
@@ -185,13 +252,19 @@ sub exit_active_state ($self) {
 sub GOTO ($self, $state_name) {
     confess "Unable to find state ($state_name) in the set of states"
         unless exists $self->{_state_map}->{ $state_name };
-    $self->{_next} = $self->{_state_map}->{ $state_name };
+    ELO::Core::Exception::TransitionState
+        ->throw( goto => $self->{_state_map}->{ $state_name } );
+}
+
+sub RAISE ($self, $error) {
+    ELO::Core::Exception::RaiseEvent->throw( event => $error );
 }
 
 sub START ($self) {
     $self->set_status(STARTING);
 
-    $self->enter_active_state($self->start);
+    $self->set_active_state($self->start);
+    $self->enter_active_state;
 
     $self->set_status(STARTED);
 
@@ -202,9 +275,8 @@ sub STOP ($self) {
 
     $self->set_status(STOPING);
 
-    if ( $self->has_active_state ) {
-        $self->exit_active_state;
-    }
+    $self->exit_active_state;
+    $self->clear_active_state;
 
     $self->set_status(STOPPED);
 
@@ -223,8 +295,7 @@ sub TICK ($self) {
         my $e = $self->dequeue_event;
         last unless defined $e;
 
-        $self->{_active}->TICK($e);
-        $self->transition_state;
+        $self->handle_event($e);
     }
 
     if ($q->is_empty) {

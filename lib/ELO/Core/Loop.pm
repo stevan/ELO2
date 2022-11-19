@@ -18,9 +18,13 @@ use slots (
     _tick             => sub { 0 },   # the tick counter
     _pid_counter      => sub { 0 },   # the pid counter
     _machine_map      => sub { +{} }, # mapping of machine name to machine object used to create new processes
+
+    _alarms           => sub { +{} }, # mapping of tick to message
     _process_table    => sub { +{} }, # mapping of pid to machine instance
     _monitor_table    => sub { +{} }, # mapping of pid to monitor instances
+
     _monitored_events => sub { +{} }, # mapping of event types to monitor instances
+
     _message_queue    => sub { +[] }, # the queue for passing messages between machines
 );
 
@@ -38,7 +42,7 @@ sub BUILD ($self, $) {
 }
 
 sub generate_new_pid ($self, $machine) {
-    sprintf '$%s:%03d' => $machine->name, ++$self->{_pid_counter}
+    sprintf '%03d:%s' => ++$self->{_pid_counter}, $machine->name
 }
 
 sub tick ($self) { $self->{_tick} }
@@ -47,6 +51,14 @@ sub tick ($self) { $self->{_tick} }
 
 sub enqueue_message ($self, $message) {
     push $self->{_message_queue}->@* => $message;
+}
+
+# alarms
+
+sub set_alarm ($self, $delay, $message) {
+    my $alarm  = $self->{_tick} + $delay;
+    my $alarms = $self->{_alarms}->{ $alarm } //= [];
+    push $alarms->@* => $message;
 }
 
 # processes
@@ -108,6 +120,11 @@ sub TICK ($self) {
 
     my @msgs = $self->{_message_queue}->@*;
     $self->{_message_queue}->@* = ();
+
+    if ( exists $self->{_alarms}->{ $self->{_tick} } ) {
+        my $alarms = delete $self->{_alarms}->{ $self->{_tick} };
+        push @msgs => @$alarms;
+    }
 
     my @machines_to_run;
     while (@msgs) {
