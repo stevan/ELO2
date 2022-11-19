@@ -10,8 +10,8 @@ use Data::Dumper;
 use ELO::Core::Queue;
 use ELO::Core::Event;
 
-use ELO::Core::Exception::TransitionState;
-use ELO::Core::Exception::RaiseEvent;
+use ELO::Core::ControlException::TransitionState;
+use ELO::Core::ControlException::RaiseEvent;
 
 use constant PROCESS => 1; # this machine is being used as a process
 use constant MONITOR => 2; # this machine is being used as a monitor
@@ -177,10 +177,10 @@ sub trampoline ($self, $f, $args, %options) {
         1;
     } or do {
         my $e = $@;
-        if ($options{can_transition} && Scalar::Util::blessed($e) && $e->isa('ELO::Core::Exception::TransitionState')) {
+        if ($options{can_transition} && Scalar::Util::blessed($e) && $e->isa('ELO::Core::ControlException::TransitionState')) {
             $self->transition_to_state( $e->next_state );
         }
-        elsif ($options{can_raise_event} && Scalar::Util::blessed($e) && $e->isa('ELO::Core::Exception::RaiseEvent')) {
+        elsif ($options{can_raise_event} && Scalar::Util::blessed($e) && $e->isa('ELO::Core::ControlException::RaiseEvent')) {
             $self->handle_event( $e->event );
         }
         else {
@@ -252,12 +252,12 @@ sub handle_event ($self, $e) {
 sub GOTO ($self, $state_name) {
     confess "Unable to find state ($state_name) in the set of states"
         unless exists $self->{_state_map}->{ $state_name };
-    ELO::Core::Exception::TransitionState
+    ELO::Core::ControlException::TransitionState
         ->throw( goto => $self->{_state_map}->{ $state_name } );
 }
 
 sub RAISE ($self, $error) {
-    ELO::Core::Exception::RaiseEvent->throw( event => $error );
+    ELO::Core::ControlException::RaiseEvent->throw( event => $error );
 }
 
 sub START ($self) {
