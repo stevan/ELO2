@@ -5,6 +5,7 @@ use experimental 'signatures', 'postderef';
 
 use Data::Dumper;
 
+use ELO::Loop::Process;
 use ELO::Loop::Message;
 
 use List::Util 'uniq';
@@ -66,18 +67,20 @@ sub set_alarm ($self, $delay, $message) {
 sub spawn ($self, $machine_name, %env) {
     my $machine = $self->{_machine_map}->{ $machine_name }->CLONE;
 
-    $machine->assign_pid( $self->generate_new_pid( $machine ) );
-    $machine->become_process;
-    $self->{_process_table}->{ $machine->pid } = $machine;
+    my $process = ELO::Loop::Process->new( machine => $machine );
+
+    $process->assign_pid( $self->generate_new_pid( $machine ) );
+    $process->become_process;
+    $self->{_process_table}->{ $process->pid } = $process;
 
     foreach my $k ( keys %env ) {
-        $machine->env->{ $k } = $env{ $k };
+        $process->env->{ $k } = $env{ $k };
     }
 
-    $machine->attach_to_loop( $self );
-    $machine->START;
+    $process->attach_to_loop( $self );
+    $process->START;
 
-    return $machine->pid;
+    return $process->pid;
 }
 
 # controls
@@ -86,12 +89,14 @@ sub START ($self) {
 
     # start all the monitors
     foreach my $monitor ($self->{monitors}->@*) {
-        $monitor->assign_pid( $self->generate_new_pid( $monitor ) );
-        $self->{_monitor_table}->{ $monitor->pid } = $monitor;
-        $monitor->become_monitor;
+        my $process = ELO::Loop::Process->new( machine => $monitor );
 
-        $monitor->attach_to_loop( $self );
-        $monitor->START;
+        $process->assign_pid( $self->generate_new_pid( $monitor ) );
+        $self->{_monitor_table}->{ $process->pid } = $process;
+        $process->become_monitor;
+
+        $process->attach_to_loop( $self );
+        $process->START;
     }
 
     $self->spawn( $self->{entry} );
@@ -100,8 +105,8 @@ sub START ($self) {
 sub STOP ($self) {
 
     # stop all the active machines
-    foreach my $machine (values $self->{_process_table}->%*) {
-        $machine->STOP;
+    foreach my $process (values $self->{_process_table}->%*) {
+        $process->STOP;
     }
 
     # stop all the monitors
@@ -137,10 +142,10 @@ sub TICK ($self) {
             }
         }
 
-        my $machine = $self->{_process_table}->{ $message->to };
-        if ($machine) {
-            $machine->enqueue_event( $message->event );
-            $machine->TICK;
+        my $process = $self->{_process_table}->{ $message->to };
+        if ($process) {
+            $process->enqueue_event( $message->event );
+            $process->TICK;
         }
         else {
             die "Could not find machine for pid(".$message->to.")"

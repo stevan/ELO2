@@ -15,9 +15,6 @@ use ELO::Machine::EventQueue;
 use ELO::Machine::Control::TransitionState;
 use ELO::Machine::Control::RaiseEvent;
 
-use constant PROCESS => 1; # this machine is being used as a process
-use constant MONITOR => 2; # this machine is being used as a monitor
-
 use constant BUILDING => 1; # when the object is being built
 use constant BUILT    => 2; # when the object has been built, but not started
 
@@ -38,14 +35,10 @@ use slots (
     start    => sub {},      # the start state of the machine
     states   => sub { +[] }, # the other states of this machine
     # ...
-    _kind      => sub {},      # how is this process being used
-    _env       => sub { +{} }, # immutable env settings for the machine
-    _context   => sub { +{} }, # mutable context for the machine
-    _loop      => sub {},      # the associated event loop
-    _pid       => sub {},      # an externally supplied identifier for this machine instance
-    _queue     => sub {},      # the event queue
-    _status    => sub {},      # the various machine status
-    _active    => sub {},      # the currently active state
+    _queue     => sub {},  # the event queue
+    _status    => sub {},  # the various machine status
+    _active    => sub {},  # the currently active state
+    _process   => sub {},  # the current ELO::Loop::Process object
 );
 
 sub BUILD ($self, $params) {
@@ -71,62 +64,9 @@ sub CLONE ($self) {
 
 sub name ($self) { $self->{name} }
 
-# context
-
-sub env     ($self) { $self->{_env} }
-sub context ($self) { $self->{_context} }
-
-# pid
-
-sub pid ($self) { $self->{_pid} }
-
-sub assign_pid ($self, $pid) {
-    $self->{_pid} = $pid; # FIXME: single assignment
-}
-
-# loop
-
-sub loop ($self) { $self->{_loop} }
-
-sub attach_to_loop ($self, $loop) {
-    $self->{_loop} = $loop; # FIXME: single assignment
-}
-
-sub send_to ($self, $pid, $event) {
-    $self->loop->enqueue_message(
-        ELO::Loop::Message->new(
-            to    => $pid,
-            event => $event,
-            from  => $self->pid,
-        )
-    );
-}
-
-sub set_alarm ($self, $delay, $pid, $event) {
-    $self->loop->set_alarm(
-        $delay,
-        ELO::Loop::Message->new(
-            to    => $pid,
-            event => $event,
-            from  => $self->pid,
-        )
-    );
-}
-
 # protocol
 
 sub protocol ($self) { $self->{protocol} }
-
-# machine type
-
-sub kind ($self) { $self->{_kind} }
-
-sub is_monitor ($self) { $self->{_kind} == MONITOR }
-sub is_process ($self) { $self->{_kind} == PROCESS }
-
-# FIXME: these should be single assignment
-sub become_monitor ($self) { $self->{_kind} = MONITOR }
-sub become_process ($self) { $self->{_kind} = PROCESS }
 
 # all things status
 
@@ -257,6 +197,36 @@ sub handle_event ($self, $e) {
         # we want to be careful about this ...
         Carp::confess("DROPPED EVENT!" . Data::Dumper::Dumper($e));
     }
+}
+
+## ---------------------------------------------
+## Process controls
+## ---------------------------------------------
+## This should be done better, it should be
+## accessable as another object instead.
+## ---------------------------------------------
+
+sub process ($self) { $self->{_process} }
+
+sub attach_process ($self, $process) {
+    $self->{_process} = $process;
+}
+
+sub detach_process ($self) {
+    $self->{_process} = undef;
+}
+
+sub env     ($self) { $self->process->env     }
+sub context ($self) { $self->process->context }
+sub pid     ($self) { $self->process->pid     }
+sub loop    ($self) { $self->process->loop    }
+
+sub send_to ($self, $pid, $e) {
+    $self->process->send_to( $pid, $e )
+}
+
+sub set_alarm ($self, $delay, $pid, $e) {
+    $self->process->set_alarm( $delay, $pid, $e )
 }
 
 ## Machine controls
