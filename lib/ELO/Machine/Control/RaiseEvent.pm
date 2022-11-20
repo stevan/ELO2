@@ -1,9 +1,9 @@
-package ELO::ControlException::RaiseEvent;
+package ELO::Machine::Control::RaiseEvent;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
 
-use parent 'ELO::ControlException';
+use parent 'ELO::Core::ControlException';
 use slots (
     event => sub {}
 );

@@ -5,7 +5,7 @@ use experimental 'signatures', 'postderef';
 
 use Data::Dumper;
 
-use ELO::Message;
+use ELO::Loop::Message;
 
 use List::Util 'uniq';
 

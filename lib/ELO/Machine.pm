@@ -7,11 +7,11 @@ use Carp 'confess';
 
 use Data::Dumper;
 
-use ELO::Queue;
+use ELO::Core::EventQueue;
 use ELO::Event;
 
-use ELO::ControlException::TransitionState;
-use ELO::ControlException::RaiseEvent;
+use ELO::Machine::Control::TransitionState;
+use ELO::Machine::Control::RaiseEvent;
 
 use constant PROCESS => 1; # this machine is being used as a process
 use constant MONITOR => 2; # this machine is being used as a monitor
@@ -50,7 +50,7 @@ use slots (
 sub BUILD ($self, $params) {
     $self->set_status(BUILDING);
 
-    $self->{_queue} = ELO::Queue->new;
+    $self->{_queue} = ELO::Core::EventQueue->new;
 
     foreach my $state ( $self->all_states ) {
         $self->{_state_map}->{ $state->name } = $state;
@@ -97,7 +97,7 @@ sub attach_to_loop ($self, $loop) {
 
 sub send_to ($self, $pid, $event) {
     $self->loop->enqueue_message(
-        ELO::Message->new(
+        ELO::Loop::Message->new(
             to    => $pid,
             event => $event,
             from  => $self->pid,
@@ -108,7 +108,7 @@ sub send_to ($self, $pid, $event) {
 sub set_alarm ($self, $delay, $pid, $event) {
     $self->loop->set_alarm(
         $delay,
-        ELO::Message->new(
+        ELO::Loop::Message->new(
             to    => $pid,
             event => $event,
             from  => $self->pid,
@@ -159,7 +159,7 @@ sub enqueue_event ($self, $e) {
 }
 
 sub dequeue_event ($self) {
-    $self->{_queue}->dequeue( $self->{_active}->deferred->@* )
+    $self->{_queue}->dequeue
 }
 
 # da states
@@ -173,14 +173,14 @@ sub all_states ($self) { ($self->{start}, $self->{states}->@*) }
 
 sub trampoline ($self, $f, $args, %options) {
     eval {
-        $f->(@$args);
+        $f->($self, @$args);
         1;
     } or do {
         my $e = $@;
-        if ($options{can_transition} && Scalar::Util::blessed($e) && $e->isa('ELO::ControlException::TransitionState')) {
+        if ($options{can_transition} && Scalar::Util::blessed($e) && $e->isa('ELO::Machine::Control::TransitionState')) {
             $self->transition_to_state( $e->next_state );
         }
-        elsif ($options{can_raise_event} && Scalar::Util::blessed($e) && $e->isa('ELO::ControlException::RaiseEvent')) {
+        elsif ($options{can_raise_event} && Scalar::Util::blessed($e) && $e->isa('ELO::Machine::Control::RaiseEvent')) {
             $self->handle_event( $e->event );
         }
         else {
@@ -191,9 +191,13 @@ sub trampoline ($self, $f, $args, %options) {
 
 sub active_state       ($self) {    $self->{_active}         }
 sub has_active_state   ($self) { !! $self->{_active}         }
-sub clear_active_state ($self) {    $self->{_active} = undef }
+sub clear_active_state ($self) {
+    $self->{_active} = undef;
+    $self->{_queue}->defer([]);
+}
 sub set_active_state   ($self, $next_state) {
     $self->{_active} = $next_state;
+    $self->{_queue}->defer( $self->{_active}->deferred );
 }
 
 sub exit_active_state ($self) {
@@ -201,7 +205,7 @@ sub exit_active_state ($self) {
     if ( my $exit = $self->active_state->exit ) {
         $self->trampoline(
             $exit,     # call exit function
-            [ $self ], # with $machine
+            [],        # no additional args
             (          # the options
                 can_transition  => 0,
                 can_raise_event => 0,
@@ -215,7 +219,7 @@ sub enter_active_state ($self) {
     if ( my $entry = $self->active_state->entry ) {
         $self->trampoline(
             $entry,    # call entry function
-            [ $self ], # with $machine
+            [],        # no additional args
             (          # the options
                 can_transition  => 1,
                 can_raise_event => 0,
@@ -234,7 +238,7 @@ sub handle_event ($self, $e) {
     if ( my $handler = $self->active_state->event_handler_for( $e ) ) {
         $self->trampoline(
             $handler,      # the handler for this event
-            [ $self, $e ], # the args to the handler
+            [ $e ],        # pass event as arg
             (              # the options
                 can_transition  => 1,
                 can_raise_event => 1
@@ -252,12 +256,12 @@ sub handle_event ($self, $e) {
 sub GOTO ($self, $state_name) {
     confess "Unable to find state ($state_name) in the set of states"
         unless exists $self->{_state_map}->{ $state_name };
-    ELO::ControlException::TransitionState
+    ELO::Machine::Control::TransitionState
         ->throw( goto => $self->{_state_map}->{ $state_name } );
 }
 
 sub RAISE ($self, $error) {
-    ELO::ControlException::RaiseEvent->throw( event => $error );
+    ELO::Machine::Control::RaiseEvent->throw( event => $error );
 }
 
 sub START ($self) {

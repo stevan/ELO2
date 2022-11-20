@@ -2,18 +2,21 @@ package ELO;
 use v5.24;
 use warnings;
 
-use ELO::EventType;
 use ELO::Event;
+use ELO::Event::Type;
 
-use ELO::ErrorType;
 use ELO::Error;
+use ELO::Error::Type;
 
 use ELO::Machine;
-use ELO::State;
-use ELO::Queue;
+use ELO::Machine::State;
+use ELO::Machine::Control::RaiseEvent;
+use ELO::Machine::Control::TransitionState;
 
 use ELO::Loop;
-use ELO::Message;
+use ELO::Loop::Message;
+
+use ELO::Core::EventQueue;
 
 1;
 

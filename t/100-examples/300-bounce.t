@@ -7,18 +7,18 @@ use experimental 'signatures', 'postderef', 'lexical_subs';
 use Data::Dumper;
 use Test::More;
 
-use ELO::Core;
+use ELO;
 
-my $eBeginBounce  = ELO::EventType->new( name => 'eBeginBounce' );
-my $eFinishBounce = ELO::EventType->new( name => 'eFinishBounce' );
+my $eBeginBounce  = ELO::Event::Type->new( name => 'eBeginBounce' );
+my $eFinishBounce = ELO::Event::Type->new( name => 'eFinishBounce' );
 
-my $eBounceUp   = ELO::EventType->new( name => 'eBounceUp'   );
-my $eBounceDown = ELO::EventType->new( name => 'eBounceDown' );
+my $eBounceUp   = ELO::Event::Type->new( name => 'eBounceUp'   );
+my $eBounceDown = ELO::Event::Type->new( name => 'eBounceDown' );
 
 my $Bounce = ELO::Machine->new(
     name     => 'Bounce',
     protocol => [ $eBeginBounce, $eFinishBounce ],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn $m->pid." : INIT\n";
@@ -43,7 +43,7 @@ my $Bounce = ELO::Machine->new(
         }
     ),
     states => [
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'Up',
             entry    => sub ($m) {
                 warn $m->pid." : UP entering\n";
@@ -61,7 +61,7 @@ my $Bounce = ELO::Machine->new(
                 }
             }
         ),
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'Down',
             entry    => sub ($m) {
                 warn $m->pid." : DOWN entering\n";
@@ -85,7 +85,7 @@ my $Bounce = ELO::Machine->new(
                 }
             }
         ),
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'Finish',
             entry    => sub ($m) {
                 warn $m->pid." : FINISH\n";
@@ -101,7 +101,7 @@ my $Bounce = ELO::Machine->new(
 my $Main = ELO::Machine->new(
     name     => 'Main',
     protocol => [],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn $m->pid." : INIT\n";

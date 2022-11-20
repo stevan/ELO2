@@ -7,24 +7,24 @@ use experimental 'signatures', 'postderef', 'lexical_subs';
 use Data::Dumper;
 use Test::More;
 
-use ELO::Core;
+use ELO;
 
 ## Event Types
 
-my $eRequest  = ELO::EventType->new( name => 'eRequest'  );
-my $eResponse = ELO::EventType->new( name => 'eResponse' );
+my $eRequest  = ELO::Event::Type->new( name => 'eRequest'  );
+my $eResponse = ELO::Event::Type->new( name => 'eResponse' );
 
-my $eConnectionRequest = ELO::EventType->new( name => 'eConnectionRequest' );
+my $eConnectionRequest = ELO::Event::Type->new( name => 'eConnectionRequest' );
 
-my $eServiceLookupRequest  = ELO::EventType->new( name => 'eServiceLookupRequest' );
-my $eServiceLookupResponse = ELO::EventType->new( name => 'eServiceLookupResponse' );
+my $eServiceLookupRequest  = ELO::Event::Type->new( name => 'eServiceLookupRequest' );
+my $eServiceLookupResponse = ELO::Event::Type->new( name => 'eServiceLookupResponse' );
 
 ## Machines
 
 my $ServiceRegistry = ELO::Machine->new(
     name     => 'ServiceRegistry',
     protocol => [ $eServiceLookupRequest, $eServiceLookupResponse ],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name     => 'WaitingForLookupRequest',
         handlers => {
             eServiceLookupRequest => sub ($m, $e) {
@@ -44,7 +44,7 @@ my $ServiceRegistry = ELO::Machine->new(
 my $Server = ELO::Machine->new(
     name     => 'WebService',
     protocol => [ $eConnectionRequest, $eResponse ],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name  => 'Init',
         entry => sub ($m) {
             $m->context->{stats} = { counter => 0 };
@@ -52,7 +52,7 @@ my $Server = ELO::Machine->new(
         }
     ),
     states => [
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'WaitingForConnectionRequest',
             handlers => {
                 eConnectionRequest => sub ($m, $e) {
@@ -89,7 +89,7 @@ my $Server = ELO::Machine->new(
 my $Client = ELO::Machine->new(
     name     => 'WebClient',
     protocol => [ $eRequest, $eResponse ],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name  => 'Init',
         entry => sub ($m) {
             $m->env->{service_lookup_cache} = +{};
@@ -97,7 +97,7 @@ my $Client = ELO::Machine->new(
         }
     ),
     states => [
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'WaitingForRequest',
             deferred => [ $eResponse ],
             handlers => {
@@ -129,7 +129,7 @@ my $Client = ELO::Machine->new(
                 }
             }
         ),
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'SendLookupRequest',
             deferred => [ $eRequest, $eResponse ],
             entry    => sub ($m) {
@@ -152,7 +152,7 @@ my $Client = ELO::Machine->new(
                 }
             }
         ),
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'SendConnectionRequest',
             deferred => [ $eRequest ],
             entry    => sub ($m) {
@@ -181,7 +181,7 @@ my $Client = ELO::Machine->new(
 my $AllRequestAreSatisfied = ELO::Machine->new(
     name     => 'AllRequestAreSatisfied',
     protocol => [ $eConnectionRequest, $eResponse ],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name     => 'CheckRequests',
         entry    => sub ($m) {
             $m->context->{seen_requests} = {};
@@ -197,7 +197,7 @@ my $AllRequestAreSatisfied = ELO::Machine->new(
                 $m->context->{seen_requests}->{ $request_id }++;
                 $m->RAISE(
                     ELO::Error->new(
-                        type    => ELO::ErrorType->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
+                        type    => ELO::Error::Type->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
                         payload => [ keys $m->context->{seen_requests}->%* ],
                     )
                 ) if (scalar keys $m->context->{seen_requests}->%*) > 2;
@@ -219,7 +219,7 @@ my $AllRequestAreSatisfied = ELO::Machine->new(
 my $Main = ELO::Machine->new(
     name     => 'Main',
     protocol => [],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name  => 'Init',
         entry => sub ($m) {
 
@@ -276,7 +276,7 @@ my $Main = ELO::Machine->new(
         },
     ),
     states => [
-        ELO::State->new(
+        ELO::Machine::State->new(
             name  => 'Pump',
             entry => sub ($m) {
                 my ($client001_pid,

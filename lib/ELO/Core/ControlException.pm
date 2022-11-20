@@ -1,4 +1,4 @@
-package ELO::ControlException;
+package ELO::Core::ControlException;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';

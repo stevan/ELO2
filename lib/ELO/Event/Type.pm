@@ -1,4 +1,4 @@
-package ELO::EventType;
+package ELO::Event::Type;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
@@ -11,12 +11,6 @@ use slots (
 );
 
 sub name ($self) { $self->{name} }
-
-sub matches ($self, $other) {
-    $other->isa( __PACKAGE__ )
-        &&
-    $self->name eq $other->name
-}
 
 1;
 

@@ -7,50 +7,50 @@ use experimental 'signatures', 'postderef', 'lexical_subs';
 use Data::Dumper;
 use Test::More;
 
-use ELO::Core;
+use ELO;
 
 ## Event Types
 
-my $eEnqueueRequest = ELO::EventType->new( name => 'eEnqueueRequest' );
-my $eDequeueRequest = ELO::EventType->new( name => 'eDequeueRequest' );
+my $eEnqueueRequest = ELO::Event::Type->new( name => 'eEnqueueRequest' );
+my $eDequeueRequest = ELO::Event::Type->new( name => 'eDequeueRequest' );
 
-my $eDequeueResponse = ELO::EventType->new( name => 'eDequeueResponse' );
+my $eDequeueResponse = ELO::Event::Type->new( name => 'eDequeueResponse' );
 
-my $E_EMPTY_QUEUE = ELO::ErrorType->new( name => 'E_EMPTY_QUEUE' );
+my $E_EMPTY_QUEUE = ELO::Error::Type->new( name => 'E_EMPTY_QUEUE' );
 
 ## Machines
 
 my $Queue = ELO::Machine->new(
     name     => 'Queue',
     protocol => [ $eEnqueueRequest, $eDequeueRequest, $eDequeueResponse ],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn "INIT : entry ".$m->pid."\n";
-            $m->context->{Q} = ELO::Queue->new;
+            $m->context->{Q} = ELO::Core::EventQueue->new;
             $m->GOTO('Empty');
         }
     ),
     states => [
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'Empty',
             deferred => [ $eDequeueRequest ],
             entry    => sub ($m) { warn "EMPTY : entry ".$m->pid."\n" },
             handlers => {
                 eEnqueueRequest => sub ($m, $e) {
                     warn "EMPTY : eEnqueueRequest ".$m->pid."\n";
-                    $m->context->{Q}->enqueue( $e->payload );
+                    $m->context->{Q}->enqueue( $e );
                     $m->GOTO('Ready');
                 }
             }
         ),
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'Ready',
             entry    => sub ($m) { warn "READY : entry ".$m->pid."\n" },
             handlers => {
                 eEnqueueRequest => sub ($m, $e) {
                     warn "READY : eEnqueueRequest ".$m->pid."\n";
-                    $m->context->{Q}->enqueue( $e->payload );
+                    $m->context->{Q}->enqueue( $e );
                 },
                 eDequeueRequest => sub ($m, $e) {
                     my ($caller, $deferred) = $e->payload->@*;
@@ -81,7 +81,7 @@ my $Queue = ELO::Machine->new(
 my $Main = ELO::Machine->new(
     name     => 'Main',
     protocol => [],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn "INIT : ".$m->pid."\n";
@@ -99,7 +99,7 @@ my $Main = ELO::Machine->new(
         }
     ),
     states => [
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'Pump',
             entry    => sub ($m) {
                 warn "PUMP : ".$m->pid."\n";
@@ -118,7 +118,7 @@ my $Main = ELO::Machine->new(
                 $m->GOTO('Consume');
             }
         ),
-        ELO::State->new(
+        ELO::Machine::State->new(
             name     => 'Consume',
             entry    => sub ($m) {
                 warn "CONSUME : ".$m->pid."\n";
@@ -151,7 +151,7 @@ my $Main = ELO::Machine->new(
 my $IdsAreIncreasing = ELO::Machine->new(
     name     => 'IdsAreIncreasing',
     protocol => [ $eDequeueResponse ],
-    start    => ELO::State->new(
+    start    => ELO::Machine::State->new(
         name     => 'CheckIds',
         entry    => sub ($m) {
             warn "!!! MONITOR(".$m->pid.") ENTERING\n";
@@ -166,7 +166,7 @@ my $IdsAreIncreasing = ELO::Machine->new(
                 }
                 else {
                     die ELO::Error->new(
-                        type    => ELO::ErrorType->new( name => 'E_ID_IS_NOT_INCREASING' ),
+                        type    => ELO::Error::Type->new( name => 'E_ID_IS_NOT_INCREASING' ),
                         payload => [ { last_id => $m->context->{last_id}, id => $id } ],
                     );
                 }
