@@ -9,16 +9,16 @@ use Test::More;
 
 use ELO::Core;
 
-my $eBeginBounce  = ELO::Core::EventType->new( name => 'eBeginBounce' );
-my $eFinishBounce = ELO::Core::EventType->new( name => 'eFinishBounce' );
+my $eBeginBounce  = ELO::EventType->new( name => 'eBeginBounce' );
+my $eFinishBounce = ELO::EventType->new( name => 'eFinishBounce' );
 
-my $eBounceUp   = ELO::Core::EventType->new( name => 'eBounceUp'   );
-my $eBounceDown = ELO::Core::EventType->new( name => 'eBounceDown' );
+my $eBounceUp   = ELO::EventType->new( name => 'eBounceUp'   );
+my $eBounceDown = ELO::EventType->new( name => 'eBounceDown' );
 
-my $Bounce = ELO::Core::Machine->new(
+my $Bounce = ELO::Machine->new(
     name     => 'Bounce',
     protocol => [ $eBeginBounce, $eFinishBounce ],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn $m->pid." : INIT\n";
@@ -36,14 +36,14 @@ my $Bounce = ELO::Core::Machine->new(
                 .")\n";
 
                 $m->set_alarm( $m->context->{height} => (
-                    $m->pid, ELO::Core::Event->new( type => $eBounceUp )
+                    $m->pid, ELO::Event->new( type => $eBounceUp )
                 ));
                 $m->GOTO('Up');
             }
         }
     ),
     states => [
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'Up',
             entry    => sub ($m) {
                 warn $m->pid." : UP entering\n";
@@ -54,14 +54,14 @@ my $Bounce = ELO::Core::Machine->new(
                     $m->set_alarm(
                         $m->context->{height} => (
                             $m->pid,
-                            ELO::Core::Event->new( type => $eBounceDown )
+                            ELO::Event->new( type => $eBounceDown )
                         )
                     );
                     $m->GOTO('Down');
                 }
             }
         ),
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'Down',
             entry    => sub ($m) {
                 warn $m->pid." : DOWN entering\n";
@@ -74,7 +74,7 @@ my $Bounce = ELO::Core::Machine->new(
                         $m->set_alarm(
                             $m->context->{height} => (
                                 $m->pid,
-                                ELO::Core::Event->new( type => $eBounceUp )
+                                ELO::Event->new( type => $eBounceUp )
                             )
                         );
                         $m->GOTO('Up');
@@ -85,23 +85,23 @@ my $Bounce = ELO::Core::Machine->new(
                 }
             }
         ),
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'Finish',
             entry    => sub ($m) {
                 warn $m->pid." : FINISH\n";
                 $m->send_to(
                     $m->context->{caller},
-                    ELO::Core::Event->new( type => $eFinishBounce )
+                    ELO::Event->new( type => $eFinishBounce )
                 );
             }
         )
     ]
 );
 
-my $Main = ELO::Core::Machine->new(
+my $Main = ELO::Machine->new(
     name     => 'Main',
     protocol => [],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn $m->pid." : INIT\n";
@@ -113,7 +113,7 @@ my $Main = ELO::Core::Machine->new(
 
             $m->send_to(
                 $bounce_001,
-                ELO::Core::Event->new(
+                ELO::Event->new(
                     type    => $eBeginBounce,
                     payload => [ $m->pid, 2, 6 ]
                 )
@@ -121,7 +121,7 @@ my $Main = ELO::Core::Machine->new(
 
             $m->send_to(
                 $bounce_002,
-                ELO::Core::Event->new(
+                ELO::Event->new(
                     type    => $eBeginBounce,
                     payload => [ $m->pid, 2, 3 ]
                 )
@@ -136,7 +136,7 @@ my $Main = ELO::Core::Machine->new(
 );
 
 
-my $L = ELO::Core::Loop->new(
+my $L = ELO::Loop->new(
     #monitors => [],
     entry    => 'Main',
     machines => [

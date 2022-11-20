@@ -11,27 +11,27 @@ use ELO::Core;
 
 ## Event Types
 
-my $eRequest  = ELO::Core::EventType->new( name => 'eRequest'  );
-my $eResponse = ELO::Core::EventType->new( name => 'eResponse' );
+my $eRequest  = ELO::EventType->new( name => 'eRequest'  );
+my $eResponse = ELO::EventType->new( name => 'eResponse' );
 
-my $eConnectionRequest = ELO::Core::EventType->new( name => 'eConnectionRequest' );
+my $eConnectionRequest = ELO::EventType->new( name => 'eConnectionRequest' );
 
-my $eServiceLookupRequest  = ELO::Core::EventType->new( name => 'eServiceLookupRequest' );
-my $eServiceLookupResponse = ELO::Core::EventType->new( name => 'eServiceLookupResponse' );
+my $eServiceLookupRequest  = ELO::EventType->new( name => 'eServiceLookupRequest' );
+my $eServiceLookupResponse = ELO::EventType->new( name => 'eServiceLookupResponse' );
 
 ## Machines
 
-my $ServiceRegistry = ELO::Core::Machine->new(
+my $ServiceRegistry = ELO::Machine->new(
     name     => 'ServiceRegistry',
     protocol => [ $eServiceLookupRequest, $eServiceLookupResponse ],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name     => 'WaitingForLookupRequest',
         handlers => {
             eServiceLookupRequest => sub ($m, $e) {
                 my ($requestor, $service_name) = $e->payload->@*;
                 warn "LOCATOR(".$m->pid.") GOT: eServiceLookupRequest: " . Dumper [$requestor, $service_name];
                 $m->send_to(
-                    $requestor => ELO::Core::Event->new(
+                    $requestor => ELO::Event->new(
                         type    => $eServiceLookupResponse,
                         payload => [ $m->env->{registry}->{ $service_name } ]
                     )
@@ -41,10 +41,10 @@ my $ServiceRegistry = ELO::Core::Machine->new(
     )
 );
 
-my $Server = ELO::Core::Machine->new(
+my $Server = ELO::Machine->new(
     name     => 'WebService',
     protocol => [ $eConnectionRequest, $eResponse ],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name  => 'Init',
         entry => sub ($m) {
             $m->context->{stats} = { counter => 0 };
@@ -52,7 +52,7 @@ my $Server = ELO::Core::Machine->new(
         }
     ),
     states => [
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'WaitingForConnectionRequest',
             handlers => {
                 eConnectionRequest => sub ($m, $e) {
@@ -75,7 +75,7 @@ my $Server = ELO::Core::Machine->new(
                     push @$response => '<<'.$m->pid.'>>';
 
                     $m->send_to(
-                        $client => ELO::Core::Event->new(
+                        $client => ELO::Event->new(
                             type    => $eResponse,
                             payload => $response
                         )
@@ -86,10 +86,10 @@ my $Server = ELO::Core::Machine->new(
     ]
 );
 
-my $Client = ELO::Core::Machine->new(
+my $Client = ELO::Machine->new(
     name     => 'WebClient',
     protocol => [ $eRequest, $eResponse ],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name  => 'Init',
         entry => sub ($m) {
             $m->env->{service_lookup_cache} = +{};
@@ -97,7 +97,7 @@ my $Client = ELO::Core::Machine->new(
         }
     ),
     states => [
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'WaitingForRequest',
             deferred => [ $eResponse ],
             handlers => {
@@ -129,14 +129,14 @@ my $Client = ELO::Core::Machine->new(
                 }
             }
         ),
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'SendLookupRequest',
             deferred => [ $eRequest, $eResponse ],
             entry    => sub ($m) {
                 warn "CLIENT(".$m->pid.") SENDING: eServiceLookupRequest to ".$m->env->{registry}."\n";
                 $m->send_to(
                     $m->env->{registry},
-                    ELO::Core::Event->new(
+                    ELO::Event->new(
                         type    => $eServiceLookupRequest,
                         payload => [ $m->pid, $m->context->{server} ]
                     )
@@ -152,14 +152,14 @@ my $Client = ELO::Core::Machine->new(
                 }
             }
         ),
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'SendConnectionRequest',
             deferred => [ $eRequest ],
             entry    => sub ($m) {
                 warn "CLIENT(".$m->pid.") SENDING: eConnectionRequest to ".$m->context->{server_pid}."\n";
                 $m->send_to(
                     $m->context->{server_pid},
-                    ELO::Core::Event->new(
+                    ELO::Event->new(
                         type    => $eConnectionRequest,
                         payload => [
                             $m->pid,
@@ -178,10 +178,10 @@ my $Client = ELO::Core::Machine->new(
     ]
 );
 
-my $AllRequestAreSatisfied = ELO::Core::Machine->new(
+my $AllRequestAreSatisfied = ELO::Machine->new(
     name     => 'AllRequestAreSatisfied',
     protocol => [ $eConnectionRequest, $eResponse ],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name     => 'CheckRequests',
         entry    => sub ($m) {
             $m->context->{seen_requests} = {};
@@ -196,8 +196,8 @@ my $AllRequestAreSatisfied = ELO::Core::Machine->new(
                 warn ">>> MONITOR(".$m->pid.") GOT: eConnectionRequest id: $request_id\n";
                 $m->context->{seen_requests}->{ $request_id }++;
                 $m->RAISE(
-                    ELO::Core::Error->new(
-                        type    => ELO::Core::ErrorType->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
+                    ELO::Error->new(
+                        type    => ELO::ErrorType->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
                         payload => [ keys $m->context->{seen_requests}->%* ],
                     )
                 ) if (scalar keys $m->context->{seen_requests}->%*) > 2;
@@ -216,10 +216,10 @@ my $AllRequestAreSatisfied = ELO::Core::Machine->new(
     )
 );
 
-my $Main = ELO::Core::Machine->new(
+my $Main = ELO::Machine->new(
     name     => 'Main',
     protocol => [],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name  => 'Init',
         entry => sub ($m) {
 
@@ -276,7 +276,7 @@ my $Main = ELO::Core::Machine->new(
         },
     ),
     states => [
-        ELO::Core::State->new(
+        ELO::State->new(
             name  => 'Pump',
             entry => sub ($m) {
                 my ($client001_pid,
@@ -285,47 +285,47 @@ my $Main = ELO::Core::Machine->new(
 
                 $m->send_to(
                     $client001_pid,
-                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
+                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
                 );
                 $m->send_to(
                     $client002_pid,
-                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
+                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
                 );
                 $m->send_to(
                     $client003_pid,
-                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
+                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
                 );
                 $m->send_to(
                     $client001_pid,
-                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/bar'] )
+                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/bar'] )
                 );
                 $m->send_to(
                     $client002_pid,
-                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/baz'] )
+                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/baz'] )
                 );
                 $m->send_to(
                     $client003_pid,
-                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/foo'] )
+                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/foo'] )
                 );
                 $m->send_to(
                     $client003_pid,
-                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
+                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
                 );
 
                 $m->send_to(
                     $client001_pid,
-                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.one/stats'] )
+                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/stats'] )
                 );
                 $m->send_to(
                     $client001_pid,
-                    ELO::Core::Event->new( type => $eRequest, payload => ['GET', '//server.two/stats'] )
+                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.two/stats'] )
                 );
             }
         )
     ]
 );
 
-my $L = ELO::Core::Loop->new(
+my $L = ELO::Loop->new(
     monitors => [ $AllRequestAreSatisfied ],
     entry    => 'Main',
     machines => [

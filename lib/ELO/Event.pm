@@ -1,4 +1,4 @@
-package ELO::Core::Event;
+package ELO::Event;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';

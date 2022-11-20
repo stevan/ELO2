@@ -1,4 +1,4 @@
-package ELO::Core::State;
+package ELO::State;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
@@ -34,7 +34,7 @@ sub BUILD ($self, $params) {
 # duplicate ones self
 
 sub CLONE ($self) {
-    ELO::Core::State->new(
+    ELO::State->new(
         name     => $self->{name},
         entry    => $self->{entry},
         exit     => $self->{exit},
@@ -63,7 +63,7 @@ sub exit  ($self) { $self->{exit} }
 sub event_handler_for ($self, $e) {
     my $e_name = $e->type->name;
 
-    if ($e->isa('ELO::Core::Error')) {
+    if ($e->isa('ELO::Error')) {
         if (exists $self->{on_error}->{ $e_name }) {
             return $self->{on_error}->{ $e_name };
         }

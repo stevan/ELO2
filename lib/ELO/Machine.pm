@@ -1,4 +1,4 @@
-package ELO::Core::Machine;
+package ELO::Machine;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef', 'lexical_subs';
@@ -7,11 +7,11 @@ use Carp 'confess';
 
 use Data::Dumper;
 
-use ELO::Core::Queue;
-use ELO::Core::Event;
+use ELO::Queue;
+use ELO::Event;
 
-use ELO::Core::ControlException::TransitionState;
-use ELO::Core::ControlException::RaiseEvent;
+use ELO::ControlException::TransitionState;
+use ELO::ControlException::RaiseEvent;
 
 use constant PROCESS => 1; # this machine is being used as a process
 use constant MONITOR => 2; # this machine is being used as a monitor
@@ -50,7 +50,7 @@ use slots (
 sub BUILD ($self, $params) {
     $self->set_status(BUILDING);
 
-    $self->{_queue} = ELO::Core::Queue->new;
+    $self->{_queue} = ELO::Queue->new;
 
     foreach my $state ( $self->all_states ) {
         $self->{_state_map}->{ $state->name } = $state;
@@ -62,7 +62,7 @@ sub BUILD ($self, $params) {
 # duplicate ones self
 
 sub CLONE ($self) {
-    ELO::Core::Machine->new(
+    ELO::Machine->new(
         name     => $self->{name},
         protocol => $self->{protocol},
         start    => $self->{start}->CLONE,
@@ -97,7 +97,7 @@ sub attach_to_loop ($self, $loop) {
 
 sub send_to ($self, $pid, $event) {
     $self->loop->enqueue_message(
-        ELO::Core::Message->new(
+        ELO::Message->new(
             to    => $pid,
             event => $event,
             from  => $self->pid,
@@ -108,7 +108,7 @@ sub send_to ($self, $pid, $event) {
 sub set_alarm ($self, $delay, $pid, $event) {
     $self->loop->set_alarm(
         $delay,
-        ELO::Core::Message->new(
+        ELO::Message->new(
             to    => $pid,
             event => $event,
             from  => $self->pid,
@@ -177,10 +177,10 @@ sub trampoline ($self, $f, $args, %options) {
         1;
     } or do {
         my $e = $@;
-        if ($options{can_transition} && Scalar::Util::blessed($e) && $e->isa('ELO::Core::ControlException::TransitionState')) {
+        if ($options{can_transition} && Scalar::Util::blessed($e) && $e->isa('ELO::ControlException::TransitionState')) {
             $self->transition_to_state( $e->next_state );
         }
-        elsif ($options{can_raise_event} && Scalar::Util::blessed($e) && $e->isa('ELO::Core::ControlException::RaiseEvent')) {
+        elsif ($options{can_raise_event} && Scalar::Util::blessed($e) && $e->isa('ELO::ControlException::RaiseEvent')) {
             $self->handle_event( $e->event );
         }
         else {
@@ -252,12 +252,12 @@ sub handle_event ($self, $e) {
 sub GOTO ($self, $state_name) {
     confess "Unable to find state ($state_name) in the set of states"
         unless exists $self->{_state_map}->{ $state_name };
-    ELO::Core::ControlException::TransitionState
+    ELO::ControlException::TransitionState
         ->throw( goto => $self->{_state_map}->{ $state_name } );
 }
 
 sub RAISE ($self, $error) {
-    ELO::Core::ControlException::RaiseEvent->throw( event => $error );
+    ELO::ControlException::RaiseEvent->throw( event => $error );
 }
 
 sub START ($self) {

@@ -1,11 +1,11 @@
-package ELO::Core::Loop;
+package ELO::Loop;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
 
 use Data::Dumper;
 
-use ELO::Core::Message;
+use ELO::Message;
 
 use List::Util 'uniq';
 

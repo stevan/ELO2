@@ -11,28 +11,28 @@ use ELO::Core;
 
 ## Event Types
 
-my $eEnqueueRequest = ELO::Core::EventType->new( name => 'eEnqueueRequest' );
-my $eDequeueRequest = ELO::Core::EventType->new( name => 'eDequeueRequest' );
+my $eEnqueueRequest = ELO::EventType->new( name => 'eEnqueueRequest' );
+my $eDequeueRequest = ELO::EventType->new( name => 'eDequeueRequest' );
 
-my $eDequeueResponse = ELO::Core::EventType->new( name => 'eDequeueResponse' );
+my $eDequeueResponse = ELO::EventType->new( name => 'eDequeueResponse' );
 
-my $E_EMPTY_QUEUE = ELO::Core::ErrorType->new( name => 'E_EMPTY_QUEUE' );
+my $E_EMPTY_QUEUE = ELO::ErrorType->new( name => 'E_EMPTY_QUEUE' );
 
 ## Machines
 
-my $Queue = ELO::Core::Machine->new(
+my $Queue = ELO::Machine->new(
     name     => 'Queue',
     protocol => [ $eEnqueueRequest, $eDequeueRequest, $eDequeueResponse ],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn "INIT : entry ".$m->pid."\n";
-            $m->context->{Q} = ELO::Core::Queue->new;
+            $m->context->{Q} = ELO::Queue->new;
             $m->GOTO('Empty');
         }
     ),
     states => [
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'Empty',
             deferred => [ $eDequeueRequest ],
             entry    => sub ($m) { warn "EMPTY : entry ".$m->pid."\n" },
@@ -44,7 +44,7 @@ my $Queue = ELO::Core::Machine->new(
                 }
             }
         ),
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'Ready',
             entry    => sub ($m) { warn "READY : entry ".$m->pid."\n" },
             handlers => {
@@ -58,14 +58,14 @@ my $Queue = ELO::Core::Machine->new(
                     if ($m->context->{Q}->is_empty) {
                         $m->send_to(
                             $caller,
-                            ELO::Core::Error->new( type => $E_EMPTY_QUEUE )
+                            ELO::Error->new( type => $E_EMPTY_QUEUE )
                         );
                         $m->GOTO('Empty');
                     }
                     else {
                         $m->send_to(
                             $caller,
-                            ELO::Core::Event->new(
+                            ELO::Event->new(
                                 type    => $eDequeueResponse,
                                 payload => [ $m->context->{Q}->dequeue ]
                             )
@@ -78,10 +78,10 @@ my $Queue = ELO::Core::Machine->new(
 );
 
 
-my $Main = ELO::Core::Machine->new(
+my $Main = ELO::Machine->new(
     name     => 'Main',
     protocol => [],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn "INIT : ".$m->pid."\n";
@@ -90,7 +90,7 @@ my $Main = ELO::Core::Machine->new(
             $m->context->{queue_pid} = $queue_pid;
             $m->send_to(
                 $m->context->{queue_pid},
-                ELO::Core::Event->new(
+                ELO::Event->new(
                     type    => $eDequeueRequest,
                     payload => [ $m->pid ]
                 )
@@ -99,13 +99,13 @@ my $Main = ELO::Core::Machine->new(
         }
     ),
     states => [
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'Pump',
             entry    => sub ($m) {
                 warn "PUMP : ".$m->pid."\n";
                 $m->send_to(
                     $m->context->{queue_pid},
-                    ELO::Core::Event->new(
+                    ELO::Event->new(
                         type    => $eEnqueueRequest,
                         payload => [
                             {
@@ -118,13 +118,13 @@ my $Main = ELO::Core::Machine->new(
                 $m->GOTO('Consume');
             }
         ),
-        ELO::Core::State->new(
+        ELO::State->new(
             name     => 'Consume',
             entry    => sub ($m) {
                 warn "CONSUME : ".$m->pid."\n";
                 $m->send_to(
                     $m->context->{queue_pid},
-                    ELO::Core::Event->new(
+                    ELO::Event->new(
                         type    => $eDequeueRequest,
                         payload => [ $m->pid ]
                     )
@@ -148,10 +148,10 @@ my $Main = ELO::Core::Machine->new(
     ]
 );
 
-my $IdsAreIncreasing = ELO::Core::Machine->new(
+my $IdsAreIncreasing = ELO::Machine->new(
     name     => 'IdsAreIncreasing',
     protocol => [ $eDequeueResponse ],
-    start    => ELO::Core::State->new(
+    start    => ELO::State->new(
         name     => 'CheckIds',
         entry    => sub ($m) {
             warn "!!! MONITOR(".$m->pid.") ENTERING\n";
@@ -165,8 +165,8 @@ my $IdsAreIncreasing = ELO::Core::Machine->new(
                     $m->context->{last_id} = $id;
                 }
                 else {
-                    die ELO::Core::Error->new(
-                        type    => ELO::Core::ErrorType->new( name => 'E_ID_IS_NOT_INCREASING' ),
+                    die ELO::Error->new(
+                        type    => ELO::ErrorType->new( name => 'E_ID_IS_NOT_INCREASING' ),
                         payload => [ { last_id => $m->context->{last_id}, id => $id } ],
                     );
                 }
@@ -181,7 +181,7 @@ my $IdsAreIncreasing = ELO::Core::Machine->new(
 );
 
 
-my $L = ELO::Core::Loop->new(
+my $L = ELO::Loop->new(
     monitors => [ $IdsAreIncreasing ],
     entry    => 'Main',
     machines => [

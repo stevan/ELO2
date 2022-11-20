@@ -1,19 +1,19 @@
-package ELO::Core;
+package ELO;
 use v5.24;
 use warnings;
 
-use ELO::Core::EventType;
-use ELO::Core::Event;
+use ELO::EventType;
+use ELO::Event;
 
-use ELO::Core::ErrorType;
-use ELO::Core::Error;
+use ELO::ErrorType;
+use ELO::Error;
 
-use ELO::Core::Machine;
-use ELO::Core::State;
-use ELO::Core::Queue;
+use ELO::Machine;
+use ELO::State;
+use ELO::Queue;
 
-use ELO::Core::Loop;
-use ELO::Core::Message;
+use ELO::Loop;
+use ELO::Message;
 
 1;
 

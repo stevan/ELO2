@@ -1,4 +1,4 @@
-package ELO::Core::Queue;
+package ELO::Queue;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
