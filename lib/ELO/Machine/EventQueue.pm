@@ -1,4 +1,4 @@
-package ELO::Core::EventQueue;
+package ELO::Machine::EventQueue;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
@@ -21,9 +21,9 @@ sub defer ($self, $deferred) {
 
     my %deferred;
     foreach ( @$deferred ) {
-        Carp::confess('The deferred event-types should be of type `ELO::Event::Type`')
+        Carp::confess('The deferred event-types should be of type `ELO::Machine::Event::Type`')
             unless Scalar::Util::blessed($_)
-                && $_->isa('ELO::Event::Type');
+                && $_->isa('ELO::Machine::Event::Type');
         $deferred{ $_->name }++;
     }
 
@@ -41,9 +41,9 @@ sub is_empty ($self) {
 }
 
 sub enqueue ($self, $e) {
-    Carp::confess('You can only enqueue items of type `ELO::Event` not '.$e)
+    Carp::confess('You can only enqueue items of type `ELO::Machine::Event` not '.$e)
         unless Scalar::Util::blessed($e)
-            && $e->isa('ELO::Event');
+            && $e->isa('ELO::Machine::Event');
 
     push $self->{_inbox}->@* => $e;
 

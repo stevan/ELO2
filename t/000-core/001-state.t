@@ -27,10 +27,10 @@ subtest '... basic state' => sub {
 
 subtest '... basic state' => sub {
 
-    my $eSkip         = ELO::Event::Type->new( name => 'eSkip' );
-    my $eFoo          = ELO::Event::Type->new( name => 'eFoo' );
-    my $eBar          = ELO::Event::Type->new( name => 'eBar' );
-    my $E_INVALID_FOO = ELO::Error::Type->new( name => 'E_INVALID_FOO' );
+    my $eSkip         = ELO::Machine::Event::Type->new( name => 'eSkip' );
+    my $eFoo          = ELO::Machine::Event::Type->new( name => 'eFoo' );
+    my $eBar          = ELO::Machine::Event::Type->new( name => 'eBar' );
+    my $E_INVALID_FOO = ELO::Machine::Error::Type->new( name => 'E_INVALID_FOO' );
 
     my %args = (
         name     => 'Init',
@@ -65,15 +65,15 @@ subtest '... basic state' => sub {
     ok($s->has_error_handlers, '... does have error_handlers');
     ok($s->has_handlers, '... does have handlers');
 
-    is($s->event_handler_for( ELO::Event->new( type => $eBar ) ),
+    is($s->event_handler_for( ELO::Machine::Event->new( type => $eBar ) ),
         $args{handlers}->{eBar},
         '... got the right code ref for eBar');
 
-    is($s->event_handler_for( ELO::Event->new( type => $eFoo ) ),
+    is($s->event_handler_for( ELO::Machine::Event->new( type => $eFoo ) ),
         $args{handlers}->{eFoo},
         '... got the right code ref for eFoo');
 
-    is($s->event_handler_for( ELO::Error->new( type => $E_INVALID_FOO ) ),
+    is($s->event_handler_for( ELO::Machine::Error->new( type => $E_INVALID_FOO ) ),
         $args{on_error}->{E_INVALID_FOO},
         '... got the right code ref for E_INVALID_FOO');
 };
@@ -87,7 +87,7 @@ subtest '... constructor errors' => sub {
 
     throws_ok {
         ELO::Machine::State->new( name => 'Foo', deferred => [ 10 ] );
-    } qr/^The \`deferred\` values should be of type \`ELO\:\:Event\:\:Type\`/,
+    } qr/^The \`deferred\` values should be of type \`ELO\:\:Machine\:\:Event\:\:Type\`/,
     '... got the expected error';
 };
 

@@ -11,13 +11,13 @@ use ELO;
 
 ## Event Types
 
-my $eRequest  = ELO::Event::Type->new( name => 'eRequest'  );
-my $eResponse = ELO::Event::Type->new( name => 'eResponse' );
+my $eRequest  = ELO::Machine::Event::Type->new( name => 'eRequest'  );
+my $eResponse = ELO::Machine::Event::Type->new( name => 'eResponse' );
 
-my $eConnectionRequest = ELO::Event::Type->new( name => 'eConnectionRequest' );
+my $eConnectionRequest = ELO::Machine::Event::Type->new( name => 'eConnectionRequest' );
 
-my $eServiceLookupRequest  = ELO::Event::Type->new( name => 'eServiceLookupRequest' );
-my $eServiceLookupResponse = ELO::Event::Type->new( name => 'eServiceLookupResponse' );
+my $eServiceLookupRequest  = ELO::Machine::Event::Type->new( name => 'eServiceLookupRequest' );
+my $eServiceLookupResponse = ELO::Machine::Event::Type->new( name => 'eServiceLookupResponse' );
 
 ## Machines
 
@@ -31,7 +31,7 @@ my $ServiceRegistry = ELO::Machine->new(
                 my ($requestor, $service_name) = $e->payload->@*;
                 warn "LOCATOR(".$m->pid.") GOT: eServiceLookupRequest: " . Dumper [$requestor, $service_name];
                 $m->send_to(
-                    $requestor => ELO::Event->new(
+                    $requestor => ELO::Machine::Event->new(
                         type    => $eServiceLookupResponse,
                         payload => [ $m->env->{registry}->{ $service_name } ]
                     )
@@ -75,7 +75,7 @@ my $Server = ELO::Machine->new(
                     push @$response => '<<'.$m->pid.'>>';
 
                     $m->send_to(
-                        $client => ELO::Event->new(
+                        $client => ELO::Machine::Event->new(
                             type    => $eResponse,
                             payload => $response
                         )
@@ -136,7 +136,7 @@ my $Client = ELO::Machine->new(
                 warn "CLIENT(".$m->pid.") SENDING: eServiceLookupRequest to ".$m->env->{registry}."\n";
                 $m->send_to(
                     $m->env->{registry},
-                    ELO::Event->new(
+                    ELO::Machine::Event->new(
                         type    => $eServiceLookupRequest,
                         payload => [ $m->pid, $m->context->{server} ]
                     )
@@ -159,7 +159,7 @@ my $Client = ELO::Machine->new(
                 warn "CLIENT(".$m->pid.") SENDING: eConnectionRequest to ".$m->context->{server_pid}."\n";
                 $m->send_to(
                     $m->context->{server_pid},
-                    ELO::Event->new(
+                    ELO::Machine::Event->new(
                         type    => $eConnectionRequest,
                         payload => [
                             $m->pid,
@@ -196,8 +196,8 @@ my $AllRequestAreSatisfied = ELO::Machine->new(
                 warn ">>> MONITOR(".$m->pid.") GOT: eConnectionRequest id: $request_id\n";
                 $m->context->{seen_requests}->{ $request_id }++;
                 $m->RAISE(
-                    ELO::Error->new(
-                        type    => ELO::Error::Type->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
+                    ELO::Machine::Error->new(
+                        type    => ELO::Machine::Error::Type->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
                         payload => [ keys $m->context->{seen_requests}->%* ],
                     )
                 ) if (scalar keys $m->context->{seen_requests}->%*) > 2;
@@ -285,40 +285,40 @@ my $Main = ELO::Machine->new(
 
                 $m->send_to(
                     $client001_pid,
-                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
+                    ELO::Machine::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
                 );
                 $m->send_to(
                     $client002_pid,
-                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
+                    ELO::Machine::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
                 );
                 $m->send_to(
                     $client003_pid,
-                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
+                    ELO::Machine::Event->new( type => $eRequest, payload => ['GET', '//server.one/'] )
                 );
                 $m->send_to(
                     $client001_pid,
-                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/bar'] )
+                    ELO::Machine::Event->new( type => $eRequest, payload => ['GET', '//server.one/bar'] )
                 );
                 $m->send_to(
                     $client002_pid,
-                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/baz'] )
+                    ELO::Machine::Event->new( type => $eRequest, payload => ['GET', '//server.one/baz'] )
                 );
                 $m->send_to(
                     $client003_pid,
-                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/foo'] )
+                    ELO::Machine::Event->new( type => $eRequest, payload => ['GET', '//server.one/foo'] )
                 );
                 $m->send_to(
                     $client003_pid,
-                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
+                    ELO::Machine::Event->new( type => $eRequest, payload => ['GET', '//server.two/foo'] )
                 );
 
                 $m->send_to(
                     $client001_pid,
-                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.one/stats'] )
+                    ELO::Machine::Event->new( type => $eRequest, payload => ['GET', '//server.one/stats'] )
                 );
                 $m->send_to(
                     $client001_pid,
-                    ELO::Event->new( type => $eRequest, payload => ['GET', '//server.two/stats'] )
+                    ELO::Machine::Event->new( type => $eRequest, payload => ['GET', '//server.two/stats'] )
                 );
             }
         )

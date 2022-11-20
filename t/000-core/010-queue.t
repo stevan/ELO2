@@ -10,18 +10,18 @@ use Test::Exception;
 
 use ok 'ELO';
 
-my $eSkip = ELO::Event::Type->new( name => 'eSkip' );
-my $eFoo  = ELO::Event::Type->new( name => 'eFoo' );
+my $eSkip = ELO::Machine::Event::Type->new( name => 'eSkip' );
+my $eFoo  = ELO::Machine::Event::Type->new( name => 'eFoo' );
 
 subtest '... basic queue' => sub {
 
-    my $q = ELO::Core::EventQueue->new;
-    isa_ok($q, 'ELO::Core::EventQueue');
+    my $q = ELO::Machine::EventQueue->new;
+    isa_ok($q, 'ELO::Machine::EventQueue');
 
     ok($q->is_empty, '... the queue is empty');
     is($q->size, 0, '... got the expected number of items');
 
-    my $foo_event = ELO::Event->new( type => $eFoo );
+    my $foo_event = ELO::Machine::Event->new( type => $eFoo );
     $q->enqueue( $foo_event );
 
     ok(!$q->is_empty, '... the queue is no longer empty');
@@ -36,19 +36,19 @@ subtest '... basic queue' => sub {
 
 subtest '... basic queue w/ deferred' => sub {
 
-    my $q = ELO::Core::EventQueue->new;
-    isa_ok($q, 'ELO::Core::EventQueue');
+    my $q = ELO::Machine::EventQueue->new;
+    isa_ok($q, 'ELO::Machine::EventQueue');
 
     ok($q->is_empty, '... the queue is empty');
 
     my @events = (
-        ELO::Event->new( type => $eFoo ),
-        ELO::Event->new( type => $eSkip ),
-        ELO::Event->new( type => $eFoo ),
-        ELO::Event->new( type => $eFoo ),
-        ELO::Event->new( type => $eFoo ),
-        ELO::Event->new( type => $eSkip ),
-        ELO::Event->new( type => $eFoo ),
+        ELO::Machine::Event->new( type => $eFoo ),
+        ELO::Machine::Event->new( type => $eSkip ),
+        ELO::Machine::Event->new( type => $eFoo ),
+        ELO::Machine::Event->new( type => $eFoo ),
+        ELO::Machine::Event->new( type => $eFoo ),
+        ELO::Machine::Event->new( type => $eSkip ),
+        ELO::Machine::Event->new( type => $eFoo ),
     );
     $q->enqueue( $_ ) foreach @events;
 
@@ -58,7 +58,7 @@ subtest '... basic queue w/ deferred' => sub {
     $q->defer([ $eSkip ]);
     foreach my $idx ( 0, 2, 3 ) {
         my $dequeued = $q->dequeue;
-        isa_ok($dequeued, 'ELO::Event');
+        isa_ok($dequeued, 'ELO::Machine::Event');
         is($dequeued->type, $eFoo, '... got the expected event type');
         is($events[ $idx ], $dequeued, '... got the expected event back ('.$idx.')');
     }
@@ -69,7 +69,7 @@ subtest '... basic queue w/ deferred' => sub {
     $q->defer([ $eFoo ]);
     foreach my $idx ( 1, 5 ) {
         my $dequeued = $q->dequeue;
-        isa_ok($dequeued, 'ELO::Event');
+        isa_ok($dequeued, 'ELO::Machine::Event');
         is($dequeued->type, $eSkip, '... got the expected event type');
         is($events[ $idx ], $dequeued, '... got the expected event back ('.$idx.')');
     }
@@ -80,7 +80,7 @@ subtest '... basic queue w/ deferred' => sub {
     $q->defer([]);
     foreach my $idx ( 4, 6 ) {
         my $dequeued = $q->dequeue;
-        isa_ok($dequeued, 'ELO::Event');
+        isa_ok($dequeued, 'ELO::Machine::Event');
         is($dequeued->type, $eFoo, '... got the expected event type');
         is($events[ $idx ], $dequeued, '... got the expected event back ('.$idx.')');
     }

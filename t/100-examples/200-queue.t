@@ -11,12 +11,12 @@ use ELO;
 
 ## Event Types
 
-my $eEnqueueRequest = ELO::Event::Type->new( name => 'eEnqueueRequest' );
-my $eDequeueRequest = ELO::Event::Type->new( name => 'eDequeueRequest' );
+my $eEnqueueRequest = ELO::Machine::Event::Type->new( name => 'eEnqueueRequest' );
+my $eDequeueRequest = ELO::Machine::Event::Type->new( name => 'eDequeueRequest' );
 
-my $eDequeueResponse = ELO::Event::Type->new( name => 'eDequeueResponse' );
+my $eDequeueResponse = ELO::Machine::Event::Type->new( name => 'eDequeueResponse' );
 
-my $E_EMPTY_QUEUE = ELO::Error::Type->new( name => 'E_EMPTY_QUEUE' );
+my $E_EMPTY_QUEUE = ELO::Machine::Error::Type->new( name => 'E_EMPTY_QUEUE' );
 
 ## Machines
 
@@ -27,7 +27,7 @@ my $Queue = ELO::Machine->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn "INIT : entry ".$m->pid."\n";
-            $m->context->{Q} = ELO::Core::EventQueue->new;
+            $m->context->{Q} = ELO::Machine::EventQueue->new;
             $m->GOTO('Empty');
         }
     ),
@@ -58,14 +58,14 @@ my $Queue = ELO::Machine->new(
                     if ($m->context->{Q}->is_empty) {
                         $m->send_to(
                             $caller,
-                            ELO::Error->new( type => $E_EMPTY_QUEUE )
+                            ELO::Machine::Error->new( type => $E_EMPTY_QUEUE )
                         );
                         $m->GOTO('Empty');
                     }
                     else {
                         $m->send_to(
                             $caller,
-                            ELO::Event->new(
+                            ELO::Machine::Event->new(
                                 type    => $eDequeueResponse,
                                 payload => [ $m->context->{Q}->dequeue ]
                             )
@@ -90,7 +90,7 @@ my $Main = ELO::Machine->new(
             $m->context->{queue_pid} = $queue_pid;
             $m->send_to(
                 $m->context->{queue_pid},
-                ELO::Event->new(
+                ELO::Machine::Event->new(
                     type    => $eDequeueRequest,
                     payload => [ $m->pid ]
                 )
@@ -105,7 +105,7 @@ my $Main = ELO::Machine->new(
                 warn "PUMP : ".$m->pid."\n";
                 $m->send_to(
                     $m->context->{queue_pid},
-                    ELO::Event->new(
+                    ELO::Machine::Event->new(
                         type    => $eEnqueueRequest,
                         payload => [
                             {
@@ -124,7 +124,7 @@ my $Main = ELO::Machine->new(
                 warn "CONSUME : ".$m->pid."\n";
                 $m->send_to(
                     $m->context->{queue_pid},
-                    ELO::Event->new(
+                    ELO::Machine::Event->new(
                         type    => $eDequeueRequest,
                         payload => [ $m->pid ]
                     )
@@ -160,13 +160,13 @@ my $IdsAreIncreasing = ELO::Machine->new(
         handlers => {
             eDequeueResponse => sub ($m, $e) {
                 warn "!!! MONITOR(".$m->pid.") GOT : eDequeueResponse => " . Dumper $e->payload->[0];
-                my $id = $e->payload->[0]->[0]->{id};
+                my $id = $e->payload->[0]->payload->[0]->{id};
                 if ( $id > $m->context->{last_id} ) {
                     $m->context->{last_id} = $id;
                 }
                 else {
-                    die ELO::Error->new(
-                        type    => ELO::Error::Type->new( name => 'E_ID_IS_NOT_INCREASING' ),
+                    die ELO::Machine::Error->new(
+                        type    => ELO::Machine::Error::Type->new( name => 'E_ID_IS_NOT_INCREASING' ),
                         payload => [ { last_id => $m->context->{last_id}, id => $id } ],
                     );
                 }

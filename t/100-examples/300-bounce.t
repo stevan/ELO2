@@ -9,11 +9,11 @@ use Test::More;
 
 use ELO;
 
-my $eBeginBounce  = ELO::Event::Type->new( name => 'eBeginBounce' );
-my $eFinishBounce = ELO::Event::Type->new( name => 'eFinishBounce' );
+my $eBeginBounce  = ELO::Machine::Event::Type->new( name => 'eBeginBounce' );
+my $eFinishBounce = ELO::Machine::Event::Type->new( name => 'eFinishBounce' );
 
-my $eBounceUp   = ELO::Event::Type->new( name => 'eBounceUp'   );
-my $eBounceDown = ELO::Event::Type->new( name => 'eBounceDown' );
+my $eBounceUp   = ELO::Machine::Event::Type->new( name => 'eBounceUp'   );
+my $eBounceDown = ELO::Machine::Event::Type->new( name => 'eBounceDown' );
 
 my $Bounce = ELO::Machine->new(
     name     => 'Bounce',
@@ -36,7 +36,7 @@ my $Bounce = ELO::Machine->new(
                 .")\n";
 
                 $m->set_alarm( $m->context->{height} => (
-                    $m->pid, ELO::Event->new( type => $eBounceUp )
+                    $m->pid, ELO::Machine::Event->new( type => $eBounceUp )
                 ));
                 $m->GOTO('Up');
             }
@@ -54,7 +54,7 @@ my $Bounce = ELO::Machine->new(
                     $m->set_alarm(
                         $m->context->{height} => (
                             $m->pid,
-                            ELO::Event->new( type => $eBounceDown )
+                            ELO::Machine::Event->new( type => $eBounceDown )
                         )
                     );
                     $m->GOTO('Down');
@@ -74,7 +74,7 @@ my $Bounce = ELO::Machine->new(
                         $m->set_alarm(
                             $m->context->{height} => (
                                 $m->pid,
-                                ELO::Event->new( type => $eBounceUp )
+                                ELO::Machine::Event->new( type => $eBounceUp )
                             )
                         );
                         $m->GOTO('Up');
@@ -91,7 +91,7 @@ my $Bounce = ELO::Machine->new(
                 warn $m->pid." : FINISH\n";
                 $m->send_to(
                     $m->context->{caller},
-                    ELO::Event->new( type => $eFinishBounce )
+                    ELO::Machine::Event->new( type => $eFinishBounce )
                 );
             }
         )
@@ -113,7 +113,7 @@ my $Main = ELO::Machine->new(
 
             $m->send_to(
                 $bounce_001,
-                ELO::Event->new(
+                ELO::Machine::Event->new(
                     type    => $eBeginBounce,
                     payload => [ $m->pid, 2, 6 ]
                 )
@@ -121,7 +121,7 @@ my $Main = ELO::Machine->new(
 
             $m->send_to(
                 $bounce_002,
-                ELO::Event->new(
+                ELO::Machine::Event->new(
                     type    => $eBeginBounce,
                     payload => [ $m->pid, 2, 3 ]
                 )

@@ -28,29 +28,33 @@ sub BUILD ($self, $) {
         unless $self->{name};
 
     foreach my $deferred ( $self->{deferred}->@* ) {
-        Carp::confess('The `deferred` values should be of type `ELO::Event::Type`')
+        Carp::confess('The `deferred` values should be of type `ELO::Machine::Event::Type`')
             unless Scalar::Util::blessed($deferred)
-                && $deferred->isa('ELO::Event::Type');
+                && $deferred->isa('ELO::Machine::Event::Type');
     }
 
-    # XXX - should I bless the various handlers
+    # QUESTION:
+    # Should I bless the various CODE handlers
     # {entry, exit, on_error & handlers} into
     # a class so the trampoline knows what to
     # do?
-}
 
-# duplicate ones self
-
-sub CLONE ($self) {
-    ELO::Machine::State->new(
-        name        => $self->{name},
-        entry       => $self->{entry},
-        exit        => $self->{exit},
-        handlers    => { $self->{handlers}->%* },
-        deferred    => [ $self->{deferred}->@* ],
-        on_error    => { $self->{on_error}->%* },
-        temperature => $self->{temperature},
-    )
+    # QUESTION:
+    # Should I Lock all these values, so we can be
+    # sure it can be reused the class itself is already
+    # immutable, but we want to be certain folks don't
+    # alter these as well.
+    #
+    # And if so, should we create copies of them? so that
+    # we can be sure that we own them?
+    #
+    # use overload     ();
+    # use Hash::Util   ();
+    #
+    # Internals::SvREADONLY( $self->{name}, 1 );
+    # Hash::Util::lock_hash( $self->{handlers}->%* );
+    # Internals::SvREADONLY( $self->{deferred}->@*, 1 );
+    # Hash::Util::lock_hash( $self->{on_error}->%* );
 }
 
 # some accessors
@@ -79,7 +83,7 @@ sub has_handlers       ($self) { !! scalar keys $self->{handlers}->%* }
 sub event_handler_for ($self, $e) {
     my $e_name = $e->type->name;
 
-    if ($e->isa('ELO::Error')) {
+    if ($e->isa('ELO::Machine::Error')) {
         if (exists $self->{on_error}->{ $e_name }) {
             return $self->{on_error}->{ $e_name };
         }

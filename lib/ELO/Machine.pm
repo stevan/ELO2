@@ -3,12 +3,14 @@ use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef', 'lexical_subs';
 
-use Carp 'confess';
+use Carp         ();
+use Scalar::Util ();
+use List::Util   ();
+use Data::Dumper ();
 
-use Data::Dumper;
-
-use ELO::Core::EventQueue;
-use ELO::Event;
+use ELO::Machine::Event;
+use ELO::Machine::Error;
+use ELO::Machine::EventQueue;
 
 use ELO::Machine::Control::TransitionState;
 use ELO::Machine::Control::RaiseEvent;
@@ -44,17 +46,12 @@ use slots (
     _queue     => sub {},      # the event queue
     _status    => sub {},      # the various machine status
     _active    => sub {},      # the currently active state
-    _state_map => sub { +{} }, # a mapping of state-name to state
 );
 
 sub BUILD ($self, $params) {
     $self->set_status(BUILDING);
 
-    $self->{_queue} = ELO::Core::EventQueue->new;
-
-    foreach my $state ( $self->all_states ) {
-        $self->{_state_map}->{ $state->name } = $state;
-    }
+    $self->{_queue} = ELO::Machine::EventQueue->new;
 
     $self->set_status(BUILT);
 }
@@ -65,8 +62,8 @@ sub CLONE ($self) {
     ELO::Machine->new(
         name     => $self->{name},
         protocol => $self->{protocol},
-        start    => $self->{start}->CLONE,
-        states   => [ map { $_->CLONE } $self->{states}->@* ],
+        start    => $self->{start},
+        states   => [ $self->{states}->@* ],
     )
 }
 
@@ -133,6 +130,7 @@ sub become_process ($self) { $self->{_kind} = PROCESS }
 
 # all things status
 
+sub get_status ($self) { $self->{_status} }
 sub set_status ($self, $status) {
     $self->{_status} = $status;
 }
@@ -178,12 +176,20 @@ sub trampoline ($self, $f, $args, %options) {
     } or do {
         my $e = $@;
         if ($options{can_transition} && Scalar::Util::blessed($e) && $e->isa('ELO::Machine::Control::TransitionState')) {
-            $self->transition_to_state( $e->next_state );
+
+            my $next_state = $e->next_state;
+            my $state      = List::Util::first { $_->name eq $next_state } $self->all_states;
+            Carp::confess("Unable to find state ($next_state) in the set of states")
+                unless defined $state;
+
+            $self->transition_to_state( $state );
         }
         elsif ($options{can_raise_event} && Scalar::Util::blessed($e) && $e->isa('ELO::Machine::Control::RaiseEvent')) {
             $self->handle_event( $e->event );
         }
         else {
+            # if it is not one of ours,
+            # we re-throw it ...
             die $e;
         }
     };
@@ -246,18 +252,21 @@ sub handle_event ($self, $e) {
         );
     }
     else {
-        use Data::Dumper;
-        confess "DROPPED EVENT!" . Dumper($e);
+        # FIXME:
+        # this can happen inside the trampoline, so
+        # we want to be careful about this ...
+        Carp::confess("DROPPED EVENT!" . Data::Dumper::Dumper($e));
     }
 }
 
 ## Machine controls
 
 sub GOTO ($self, $state_name) {
-    confess "Unable to find state ($state_name) in the set of states"
-        unless exists $self->{_state_map}->{ $state_name };
-    ELO::Machine::Control::TransitionState
-        ->throw( goto => $self->{_state_map}->{ $state_name } );
+    # NOTE:
+    # this resolves the state name within the trampoline
+    # instead of trying to do it here, the result is the
+    # same in the end.
+    ELO::Machine::Control::TransitionState->throw( goto => $state_name );
 }
 
 sub RAISE ($self, $error) {
@@ -271,8 +280,7 @@ sub START ($self) {
     $self->enter_active_state;
 
     $self->set_status(STARTED);
-
-    return $self;
+    return;
 }
 
 sub STOP ($self) {
@@ -283,8 +291,7 @@ sub STOP ($self) {
     $self->clear_active_state;
 
     $self->set_status(STOPPED);
-
-    return $self;
+    return;
 }
 
 sub TICK ($self) {
@@ -294,7 +301,6 @@ sub TICK ($self) {
     my $q = $self->queue;
 
     until ($q->is_empty) {
-        #warn Dumper $q;
 
         my $e = $self->dequeue_event;
         last unless defined $e;
@@ -309,7 +315,9 @@ sub TICK ($self) {
         $self->set_status(BLOCKED);
     }
 
-    return $self;
+    # let the caller know if
+    # we are waiting or blocked
+    return $self->get_status;
 }
 
 1;

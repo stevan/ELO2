@@ -1,11 +1,12 @@
-package ELO::Event;
+package ELO::Machine::Event;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
 
 use Carp         ();
 use Scalar::Util ();
-use Data::Dumper ();
+
+use ELO::Machine::Event::Type;
 
 use parent 'UNIVERSAL::Object::Immutable';
 use slots (
@@ -14,9 +15,9 @@ use slots (
 );
 
 sub BUILD ($self, $) {
-    Carp::confess('The `type` must be of type `ELO::Event::Type`')
+    Carp::confess('The `type` must be of type `ELO::Machine::Event::Type`')
         unless Scalar::Util::blessed($self->{type})
-            && $self->{type}->isa('ELO::Event::Type');
+            && $self->{type}->isa('ELO::Machine::Event::Type');
 }
 
 sub type    ($self) { $self->{type}    }

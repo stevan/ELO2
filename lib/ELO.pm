@@ -2,11 +2,11 @@ package ELO;
 use v5.24;
 use warnings;
 
-use ELO::Event;
-use ELO::Event::Type;
+use ELO::Machine::Event;
+use ELO::Machine::Event::Type;
 
-use ELO::Error;
-use ELO::Error::Type;
+use ELO::Machine::Error;
+use ELO::Machine::Error::Type;
 
 use ELO::Machine;
 use ELO::Machine::State;
@@ -16,7 +16,7 @@ use ELO::Machine::Control::TransitionState;
 use ELO::Loop;
 use ELO::Loop::Message;
 
-use ELO::Core::EventQueue;
+use ELO::Machine::EventQueue;
 
 1;
 
