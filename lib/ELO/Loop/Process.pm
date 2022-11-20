@@ -80,10 +80,10 @@ sub set_alarm ($self, $delay, $pid, $event) {
     );
 }
 
-## API
+## Drive the machine API
 
-sub enqueue_event ($self, $e) {
-    $self->machine->enqueue_event( $e );
+sub ACCEPT ($self, $e) {
+    $self->machine->ACCEPT( $e );
 }
 
 sub TICK ($self) {

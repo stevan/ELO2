@@ -229,7 +229,16 @@ sub set_alarm ($self, $delay, $pid, $e) {
     $self->process->set_alarm( $delay, $pid, $e )
 }
 
+## ---------------------------------------------
 ## Machine controls
+## ---------------------------------------------
+## This is the API which you can control the
+## machine.
+## ---------------------------------------------
+
+sub ACCEPT ($self, $e) {
+    $self->enqueue_event( $e );
+}
 
 sub GOTO ($self, $state_name) {
     # NOTE:
