@@ -137,14 +137,14 @@ sub TICK ($self) {
 
         if ( exists $self->{_monitored_events}->{ $message->event->type->name } ) {
             foreach my $monitor ( $self->{_monitored_events}->{ $message->event->type->name }->@* ) {
-                $monitor->enqueue_event( $message->event );
+                $monitor->ACCEPT( $message->event );
                 $monitor->TICK;
             }
         }
 
         my $process = $self->{_process_table}->{ $message->to };
         if ($process) {
-            $process->enqueue_event( $message->event );
+            $process->ACCEPT( $message->event );
             $process->TICK;
         }
         else {

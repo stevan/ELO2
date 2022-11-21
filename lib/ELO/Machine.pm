@@ -221,6 +221,8 @@ sub context ($self) { $self->process->context }
 sub pid     ($self) { $self->process->pid     }
 sub loop    ($self) { $self->process->loop    }
 
+# add `spawn` so we don't need to add `loop`
+
 sub send_to ($self, $pid, $e) {
     $self->process->send_to( $pid, $e )
 }
@@ -228,6 +230,9 @@ sub send_to ($self, $pid, $e) {
 sub set_alarm ($self, $delay, $pid, $e) {
     $self->process->set_alarm( $delay, $pid, $e )
 }
+
+# XXX - should `goto` and `raise` be handled via this
+# interface? then it becomes a user's machine API
 
 ## ---------------------------------------------
 ## Machine controls
