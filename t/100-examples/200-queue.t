@@ -85,7 +85,7 @@ my $Main = ELO::Machine->new(
         name     => 'Init',
         entry    => sub ($m) {
             warn "INIT : ".$m->pid."\n";
-            my $queue_pid = $m->loop->spawn('Queue');
+            my $queue_pid = $m->container->spawn('Queue');
             $m->context->{id} = 0;
             $m->context->{queue_pid} = $queue_pid;
             $m->send_to(
@@ -181,7 +181,7 @@ my $IdsAreIncreasing = ELO::Machine->new(
 );
 
 
-my $L = ELO::Loop->new(
+my $L = ELO::Container->new(
     monitors => [ $IdsAreIncreasing ],
     entry    => 'Main',
     machines => [

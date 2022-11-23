@@ -19,26 +19,18 @@
 | Node |
 +------+
 
-+-----------+
-| Container |
-+-----------+
-| %signals  |
-| $STDIN    |
-| $STDOUT   |
-| $STDERR   |
-+-----------+
-  |
-  |     +------+
-  `-(*)-| Loop |
-        +------------------+
-        | %process_table   |
-        +--------+---------+
-        | PID -> | Machine |
-        +--------+---------+
-                   |
-                   |     +------------+
-                   `-(*)-| State, ... |
-                         +------------+
++------------------+
+| Container        |
++------------------+
+| %signals         | <-- events from the container
+| %timers          | <-- tick timers
+| $STDIN           | <-- input  fd
+| $STDOUT          | <-- output fd
+| $STDERR          | <-- error  fd
+| %process_table   | <-- mapping of PID to Machine(PROCESS) instance
+| %monitor_table   | <-- mapping of PID to Machine(MONITOR) instance
++--------+---------+
+
 
 
 ```

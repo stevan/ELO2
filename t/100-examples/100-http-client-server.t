@@ -223,23 +223,23 @@ my $Main = ELO::Machine->new(
         name  => 'Init',
         entry => sub ($m) {
 
-            my $loop = $m->loop;
+            my $container = $m->container;
 
-            my $server001_pid = $loop->spawn('WebService' => ( endpoints => {
+            my $server001_pid = $container->spawn('WebService' => ( endpoints => {
                 '/'    => [ 200, 'OK  .oO( ~ )' ],
                 '/foo' => [ 300, '>>> .oO(foo)' ],
                 '/bar' => [ 404, ':-| .oO(bar)' ],
                 '/baz' => [ 500, ':-O .oO(baz)' ],
             }));
 
-            my $server002_pid = $loop->spawn('WebService' => ( endpoints => {
+            my $server002_pid = $container->spawn('WebService' => ( endpoints => {
                 '/'    => [ 200, 'OK  .oO( ~ )' ],
                 '/foo' => [ 300, '>>> .oO(foo)' ],
                 '/bar' => [ 404, ':-| .oO(bar)' ],
                 '/baz' => [ 500, ':-O .oO(baz)' ],
             }));
 
-            my $service_registry_pid = $loop->spawn('ServiceRegistry' => (
+            my $service_registry_pid = $container->spawn('ServiceRegistry' => (
                 registry => {
                     'server.one' => $server001_pid,
                     'server.two' => $server002_pid,
@@ -251,17 +251,17 @@ my $Main = ELO::Machine->new(
                 sprintf 'req:%d' => ++$current_request_id;
             }
 
-            my $client001_pid = $loop->spawn('WebClient' => (
+            my $client001_pid = $container->spawn('WebClient' => (
                 registry        => $service_registry_pid,
                 next_request_id => \&request_id_generator,
             ));
 
-            my $client002_pid = $loop->spawn('WebClient' => (
+            my $client002_pid = $container->spawn('WebClient' => (
                 registry        => $service_registry_pid,
                 next_request_id => \&request_id_generator,
             ));
 
-            my $client003_pid = $loop->spawn('WebClient' => (
+            my $client003_pid = $container->spawn('WebClient' => (
                 registry        => $service_registry_pid,
                 next_request_id => \&request_id_generator,
             ));
@@ -325,7 +325,7 @@ my $Main = ELO::Machine->new(
     ]
 );
 
-my $L = ELO::Loop->new(
+my $L = ELO::Container->new(
     monitors => [ $AllRequestAreSatisfied ],
     entry    => 'Main',
     machines => [

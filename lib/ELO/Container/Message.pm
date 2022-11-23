@@ -1,4 +1,4 @@
-package ELO::Loop::Message;
+package ELO::Container::Message;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';

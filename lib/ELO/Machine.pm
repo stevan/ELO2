@@ -15,6 +15,9 @@ use ELO::Machine::EventQueue;
 use ELO::Machine::Control::TransitionState;
 use ELO::Machine::Control::RaiseEvent;
 
+use constant PROCESS => 1; # this machine is being used as a process
+use constant MONITOR => 2; # this machine is being used as a monitor
+
 use constant BUILDING => 1; # when the object is being built
 use constant BUILT    => 2; # when the object has been built, but not started
 
@@ -38,7 +41,12 @@ use slots (
     _queue     => sub {},  # the event queue
     _status    => sub {},  # the various machine status
     _active    => sub {},  # the currently active state
-    _process   => sub {},  # the current ELO::Loop::Process object
+    # ...
+    _kind      => sub {},      # is a process or monitor?
+    _pid       => sub {},      # an externally supplied identifier for this machine instance
+    _env       => sub { +{} }, # immutable env settings for the machine
+    _context   => sub { +{} }, # mutable context for the machine
+    _container => sub {},      # the associated container
 );
 
 sub BUILD ($self, $params) {
@@ -206,29 +214,57 @@ sub handle_event ($self, $e) {
 ## accessable as another object instead.
 ## ---------------------------------------------
 
-sub process ($self) { $self->{_process} }
+# machine type
 
-sub attach_process ($self, $process) {
-    $self->{_process} = $process;
+sub kind ($self) { $self->{_kind} }
+
+sub is_monitor ($self) { $self->{_kind} == MONITOR }
+sub is_process ($self) { $self->{_kind} == PROCESS }
+
+# FIXME: these should be single assignment
+sub become_monitor ($self) { $self->{_kind} = MONITOR }
+sub become_process ($self) { $self->{_kind} = PROCESS }
+
+# context
+
+sub env     ($self) { $self->{_env} }
+sub context ($self) { $self->{_context} }
+
+# pid
+
+sub pid ($self) { $self->{_pid} }
+
+sub assign_pid ($self, $pid) {
+    $self->{_pid} = $pid; # FIXME: single assignment
 }
 
-sub detach_process ($self) {
-    $self->{_process} = undef;
+# container
+
+sub container ($self) { $self->{_container} }
+
+sub attach_to_container ($self, $container) {
+    $self->{_container} = $container; # FIXME: single assignment
 }
 
-sub env     ($self) { $self->process->env     }
-sub context ($self) { $self->process->context }
-sub pid     ($self) { $self->process->pid     }
-sub loop    ($self) { $self->process->loop    }
-
-# add `spawn` so we don't need to add `loop`
-
-sub send_to ($self, $pid, $e) {
-    $self->process->send_to( $pid, $e )
+sub send_to ($self, $pid, $event) {
+    $self->container->enqueue_message(
+        ELO::Container::Message->new(
+            to    => $pid,
+            event => $event,
+            from  => $self->pid,
+        )
+    );
 }
 
-sub set_alarm ($self, $delay, $pid, $e) {
-    $self->process->set_alarm( $delay, $pid, $e )
+sub set_alarm ($self, $delay, $pid, $event) {
+    $self->container->set_alarm(
+        $delay,
+        ELO::Container::Message->new(
+            to    => $pid,
+            event => $event,
+            from  => $self->pid,
+        )
+    );
 }
 
 # XXX - should `goto` and `raise` be handled via this

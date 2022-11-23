@@ -1,12 +1,12 @@
-package ELO::Loop;
+package ELO::Container;
 use v5.24;
 use warnings;
 use experimental 'signatures', 'postderef';
 
 use Data::Dumper;
 
-use ELO::Loop::Process;
-use ELO::Loop::Message;
+use ELO::Machine;
+use ELO::Container::Message;
 
 use List::Util 'uniq';
 
@@ -25,8 +25,7 @@ use slots (
     _monitor_table    => sub { +{} }, # mapping of pid to monitor instances
 
     _monitored_events => sub { +{} }, # mapping of event types to monitor instances
-
-    _message_queue    => sub { +[] }, # the queue for passing messages between machines
+    _message_bus      => sub { +[] }, # the queue for passing messages between machines
 );
 
 sub BUILD ($self, $) {
@@ -51,7 +50,7 @@ sub tick ($self) { $self->{_tick} }
 # messages
 
 sub enqueue_message ($self, $message) {
-    push $self->{_message_queue}->@* => $message;
+    push $self->{_message_bus}->@* => $message;
 }
 
 # alarms
@@ -67,20 +66,18 @@ sub set_alarm ($self, $delay, $message) {
 sub spawn ($self, $machine_name, %env) {
     my $machine = $self->{_machine_map}->{ $machine_name }->CLONE;
 
-    my $process = ELO::Loop::Process->new( machine => $machine );
-
-    $process->assign_pid( $self->generate_new_pid( $machine ) );
-    $process->become_process;
-    $self->{_process_table}->{ $process->pid } = $process;
+    $machine->assign_pid( $self->generate_new_pid( $machine ) );
+    $machine->become_process;
+    $self->{_process_table}->{ $machine->pid } = $machine;
 
     foreach my $k ( keys %env ) {
-        $process->env->{ $k } = $env{ $k };
+        $machine->env->{ $k } = $env{ $k };
     }
 
-    $process->attach_to_loop( $self );
-    $process->START;
+    $machine->attach_to_container( $self );
+    $machine->START;
 
-    return $process->pid;
+    return $machine->pid;
 }
 
 # controls
@@ -89,14 +86,12 @@ sub START ($self) {
 
     # start all the monitors
     foreach my $monitor ($self->{monitors}->@*) {
-        my $process = ELO::Loop::Process->new( machine => $monitor );
+        $monitor->assign_pid( $self->generate_new_pid( $monitor ) );
+        $self->{_monitor_table}->{ $monitor->pid } = $monitor;
+        $monitor->become_monitor;
 
-        $process->assign_pid( $self->generate_new_pid( $monitor ) );
-        $self->{_monitor_table}->{ $process->pid } = $process;
-        $process->become_monitor;
-
-        $process->attach_to_loop( $self );
-        $process->START;
+        $monitor->attach_to_container( $self );
+        $monitor->START;
     }
 
     $self->spawn( $self->{entry} );
@@ -105,8 +100,8 @@ sub START ($self) {
 sub STOP ($self) {
 
     # stop all the active machines
-    foreach my $process (values $self->{_process_table}->%*) {
-        $process->STOP;
+    foreach my $machine (values $self->{_process_table}->%*) {
+        $machine->STOP;
     }
 
     # stop all the monitors
@@ -123,8 +118,8 @@ sub TICK ($self) {
 
     warn '--('.sprintf('%03d', $self->{_tick}).')'.join('','-' x 70)."\n";
 
-    my @msgs = $self->{_message_queue}->@*;
-    $self->{_message_queue}->@* = ();
+    my @msgs = $self->{_message_bus}->@*;
+    $self->{_message_bus}->@* = ();
 
     if ( exists $self->{_alarms}->{ $self->{_tick} } ) {
         my $alarms = delete $self->{_alarms}->{ $self->{_tick} };
@@ -142,10 +137,10 @@ sub TICK ($self) {
             }
         }
 
-        my $process = $self->{_process_table}->{ $message->to };
-        if ($process) {
-            $process->ACCEPT( $message->event );
-            $process->TICK;
+        my $machine = $self->{_process_table}->{ $message->to };
+        if ($machine) {
+            $machine->ACCEPT( $message->event );
+            $machine->TICK;
         }
         else {
             die "Could not find machine for pid(".$message->to.")"

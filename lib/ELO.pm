@@ -13,8 +13,8 @@ use ELO::Machine::State;
 use ELO::Machine::Control::RaiseEvent;
 use ELO::Machine::Control::TransitionState;
 
-use ELO::Loop;
-use ELO::Loop::Message;
+use ELO::Container;
+use ELO::Container::Message;
 
 use ELO::Machine::EventQueue;
 

@@ -106,8 +106,8 @@ my $Main = ELO::Machine->new(
         entry    => sub ($m) {
             warn $m->pid." : INIT\n";
 
-            my $bounce_001 = $m->loop->spawn('Bounce');
-            my $bounce_002 = $m->loop->spawn('Bounce');
+            my $bounce_001 = $m->container->spawn('Bounce');
+            my $bounce_002 = $m->container->spawn('Bounce');
 
             warn $m->pid . " : Bounce Begin\n";
 
@@ -136,7 +136,7 @@ my $Main = ELO::Machine->new(
 );
 
 
-my $L = ELO::Loop->new(
+my $L = ELO::Container->new(
     #monitors => [],
     entry    => 'Main',
     machines => [
