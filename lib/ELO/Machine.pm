@@ -54,6 +54,11 @@ sub BUILD ($self, $params) {
 
     $self->{_queue} = ELO::Machine::EventQueue->new;
 
+    # TODO:
+    # use the protocol and check to make sure that
+    # all the states are correctly handling the
+    # input types (or deferring them).
+
     $self->set_status(BUILT);
 }
 
@@ -207,13 +212,6 @@ sub handle_event ($self, $e) {
     }
 }
 
-## ---------------------------------------------
-## Process controls
-## ---------------------------------------------
-## This should be done better, it should be
-## accessable as another object instead.
-## ---------------------------------------------
-
 # machine type
 
 sub kind ($self) { $self->{_kind} }
@@ -247,7 +245,9 @@ sub attach_to_container ($self, $container) {
 }
 
 sub send_to ($self, $pid, $event) {
+    # TODO : check that event is valid protocol output type
     $self->container->enqueue_message(
+        # FIXME: move ELO::Container::* usage to Container level
         ELO::Container::Message->new(
             to    => $pid,
             event => $event,
@@ -257,8 +257,10 @@ sub send_to ($self, $pid, $event) {
 }
 
 sub set_alarm ($self, $delay, $pid, $event) {
+    # TODO : check that event is valid protocol output type
     $self->container->set_alarm(
         $delay,
+        # FIXME: move ELO::Container::* usage to Container level
         ELO::Container::Message->new(
             to    => $pid,
             event => $event,
@@ -266,9 +268,6 @@ sub set_alarm ($self, $delay, $pid, $event) {
         )
     );
 }
-
-# XXX - should `goto` and `raise` be handled via this
-# interface? then it becomes a user's machine API
 
 ## ---------------------------------------------
 ## Machine controls
@@ -278,6 +277,7 @@ sub set_alarm ($self, $delay, $pid, $event) {
 ## ---------------------------------------------
 
 sub ACCEPT ($self, $e) {
+    # TODO : check that event is valid protocol input type
     $self->enqueue_event( $e );
 }
 

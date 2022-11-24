@@ -10,6 +10,15 @@ use slots (
 
 sub name ($self) { $self->{name} }
 
+# XXX
+# Should this be a constructor for Event objects?
+# such as a `new_event` method, that would accept
+# the payload value and construct an event with
+# this as the type?
+#
+# or is this starting to add sugar where we might
+# not need it?
+
 1;
 
 __END__

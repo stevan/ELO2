@@ -19,6 +19,59 @@ my $eConnectionRequest = ELO::Machine::Event::Type->new( name => 'eConnectionReq
 my $eServiceLookupRequest  = ELO::Machine::Event::Type->new( name => 'eServiceLookupRequest' );
 my $eServiceLookupResponse = ELO::Machine::Event::Type->new( name => 'eServiceLookupResponse' );
 
+=pod
+
+protocol SERVICE_REGISTRY {
+    type eServiceLookupRequest  = ( caller : PID, name : Str );
+    type eServiceLookupResponse = ( address : PID );
+
+    pair eServiceLookupRequest, eServiceLookupResponse;
+}
+
+machine ServiceRegistry : SERVICE_REGISTRY {
+    state WaitingForLookupRequest {
+        on eServiceLookupRequest ($requestor, $service_name) {
+            send_to $requestor =>
+                $eServiceLookupResponse->new_event([
+                    env->{registry}->{ $service_name }
+                ])
+        }
+    }
+}
+
+protocol WEB_SERVER {
+    type eConnectionRequest  = (
+        caller  : PID,
+        request : (
+            id     : Int,
+            method : HTTP_Method,
+            url    : Uri
+        )
+    );
+
+    type eConnectionResponse = (
+        id       : Int,
+        response : (
+            status : HTTP_Status,
+            body   : Str
+        )
+    );
+
+    pair eConnectionRequest, eConnectionResponse;
+}
+
+protocol WEB_CLIENT {
+    use SERVICE_REGISTRY;
+    use WEB_SERVER;
+
+    type eRequest  = ( method : HTTP_Method, url  : Uri );
+    type eResponse = ( status : HTTP_Status, body : Str );
+
+    pair eRequest, eResponse;
+}
+
+=cut
+
 my $pServiceRegistry = ELO::Protocol->new(
     name => 'SERVICE_REGISTRY',
     pair => [
@@ -48,6 +101,11 @@ my $pWebClient = ELO::Protocol->new(
 );
 
 ## Machines
+
+=pod
+
+
+=cut
 
 my $ServiceRegistry = ELO::Machine->new(
     name     => 'ServiceRegistry',

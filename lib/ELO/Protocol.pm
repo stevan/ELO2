@@ -5,7 +5,7 @@ use experimental 'signatures', 'postderef', 'lexical_subs';
 
 use List::Util;
 
-use parent 'UNIVERSAL::Object';
+use parent 'UNIVERSAL::Object::Immutable';
 use slots (
     name     => sub {},
     pair     => sub {},
