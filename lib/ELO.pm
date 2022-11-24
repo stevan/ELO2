@@ -8,6 +8,8 @@ use ELO::Machine::Event::Type;
 use ELO::Machine::Error;
 use ELO::Machine::Error::Type;
 
+use ELO::Protocol;
+
 use ELO::Machine;
 use ELO::Machine::State;
 use ELO::Machine::Control::RaiseEvent;

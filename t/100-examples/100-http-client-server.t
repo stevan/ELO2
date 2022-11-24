@@ -19,11 +19,39 @@ my $eConnectionRequest = ELO::Machine::Event::Type->new( name => 'eConnectionReq
 my $eServiceLookupRequest  = ELO::Machine::Event::Type->new( name => 'eServiceLookupRequest' );
 my $eServiceLookupResponse = ELO::Machine::Event::Type->new( name => 'eServiceLookupResponse' );
 
+my $pServiceRegistry = ELO::Protocol->new(
+    name => 'SERVICE_REGISTRY',
+    pair => [
+        $eServiceLookupRequest,
+        $eServiceLookupResponse
+    ]
+);
+
+my $pWebServer = ELO::Protocol->new(
+    name => 'WEB_SERVER',
+    pair => [
+        $eConnectionRequest,
+        $eResponse
+    ]
+);
+
+my $pWebClient = ELO::Protocol->new(
+    name => 'WEB_CLIENT',
+    pair => [
+        $eRequest,
+        $eResponse
+    ],
+    uses => [
+        $pServiceRegistry,
+        $pWebServer
+    ]
+);
+
 ## Machines
 
 my $ServiceRegistry = ELO::Machine->new(
     name     => 'ServiceRegistry',
-    protocol => [ $eServiceLookupRequest, $eServiceLookupResponse ],
+    protocol => $pServiceRegistry,
     start    => ELO::Machine::State->new(
         name     => 'WaitingForLookupRequest',
         handlers => {
@@ -43,7 +71,7 @@ my $ServiceRegistry = ELO::Machine->new(
 
 my $Server = ELO::Machine->new(
     name     => 'WebService',
-    protocol => [ $eConnectionRequest, $eResponse ],
+    protocol => $pWebServer,
     start    => ELO::Machine::State->new(
         name  => 'Init',
         entry => sub ($m) {
@@ -88,7 +116,7 @@ my $Server = ELO::Machine->new(
 
 my $Client = ELO::Machine->new(
     name     => 'WebClient',
-    protocol => [ $eRequest, $eResponse ],
+    protocol => $pWebClient,
     start    => ELO::Machine::State->new(
         name  => 'Init',
         entry => sub ($m) {
@@ -180,7 +208,7 @@ my $Client = ELO::Machine->new(
 
 my $AllRequestAreSatisfied = ELO::Machine->new(
     name     => 'AllRequestAreSatisfied',
-    protocol => [ $eConnectionRequest, $eResponse ],
+    protocol => $pWebServer,
     start    => ELO::Machine::State->new(
         name     => 'CheckRequests',
         entry    => sub ($m) {
@@ -218,7 +246,7 @@ my $AllRequestAreSatisfied = ELO::Machine->new(
 
 my $Main = ELO::Machine->new(
     name     => 'Main',
-    protocol => [],
+    protocol => ELO::Protocol->new,
     start    => ELO::Machine::State->new(
         name  => 'Init',
         entry => sub ($m) {

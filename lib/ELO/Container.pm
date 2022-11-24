@@ -34,7 +34,7 @@ sub BUILD ($self, $) {
     }
 
     foreach my $monitor ($self->{monitors}->@*) {
-        foreach my $event ( $monitor->protocol->@* ) {
+        foreach my $event ( $monitor->protocol->all_types ) {
             $self->{_monitored_events}->{ $event->name } //= [];
             push $self->{_monitored_events}->{ $event->name }->@* => $monitor;
         }
