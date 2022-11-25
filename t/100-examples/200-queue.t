@@ -9,6 +9,10 @@ use Test::More;
 
 use ELO;
 
+sub DEBUG ($msg) {
+    warn $msg if $ENV{DEBUG};
+}
+
 ## Event Types
 
 my $eEnqueueRequest = ELO::Machine::Event::Type->new( name => 'eEnqueueRequest' );
@@ -17,16 +21,47 @@ my $eDequeueRequest = ELO::Machine::Event::Type->new( name => 'eDequeueRequest' 
 my $eDequeueResponse = ELO::Machine::Event::Type->new( name => 'eDequeueResponse' );
 
 my $E_EMPTY_QUEUE = ELO::Machine::Error::Type->new( name => 'E_EMPTY_QUEUE' );
+my $E_FULL_QUEUE  = ELO::Machine::Error::Type->new( name => 'E_FULL_QUEUE' );
+
+## Protocols
+
+
+my $pDequeue = ELO::Protocol->new(
+    name => 'Dequeue',
+    pair => [
+        $eDequeueRequest,
+        $eDequeueResponse
+    ],
+    throws => [ $E_EMPTY_QUEUE ]
+);
+
+# while enquee is just an accepted message
+# which means that it expects no response
+# and also an error here
+
+my $pEnqueue = ELO::Protocol->new(
+    name    => 'Enqueue',
+    accepts => [ $eEnqueueRequest ],
+    throws  => [ $E_FULL_QUEUE ]
+);
+
+# the Queue protocol is a union of both of these
+
+my $pQueue = ELO::Protocol->new(
+    name => 'Queue',
+    uses => [ $pEnqueue, $pDequeue ]
+);
 
 ## Machines
 
 my $Queue = ELO::Machine->new(
     name     => 'Queue',
-    protocol => [ $eEnqueueRequest, $eDequeueRequest, $eDequeueResponse ],
+    protocol => $pQueue,
     start    => ELO::Machine::State->new(
         name     => 'Init',
         entry    => sub ($m) {
-            warn "INIT : entry ".$m->pid."\n";
+            DEBUG  "INIT : entry ".$m->pid."\n";
+            pass('... Queue->Init : entered Queue machine');
             $m->context->{Q} = ELO::Machine::EventQueue->new;
             $m->GOTO('Empty');
         }
@@ -35,10 +70,14 @@ my $Queue = ELO::Machine->new(
         ELO::Machine::State->new(
             name     => 'Empty',
             deferred => [ $eDequeueRequest ],
-            entry    => sub ($m) { warn "EMPTY : entry ".$m->pid."\n" },
+            entry    => sub ($m) {
+                DEBUG  "EMPTY : entry ".$m->pid."\n";
+                pass('... Queue->Empty : the queue is empty');
+            },
             handlers => {
                 eEnqueueRequest => sub ($m, $e) {
-                    warn "EMPTY : eEnqueueRequest ".$m->pid."\n";
+                    DEBUG  "EMPTY : eEnqueueRequest ".$m->pid."\n";
+                    pass('... Queue->Empty : got enqueue request');
                     $m->context->{Q}->enqueue( $e );
                     $m->GOTO('Ready');
                 }
@@ -46,15 +85,20 @@ my $Queue = ELO::Machine->new(
         ),
         ELO::Machine::State->new(
             name     => 'Ready',
-            entry    => sub ($m) { warn "READY : entry ".$m->pid."\n" },
+            entry    => sub ($m) {
+                DEBUG  "READY : entry ".$m->pid."\n";
+                pass('... Queue->Ready : the queue is ready');
+            },
             handlers => {
                 eEnqueueRequest => sub ($m, $e) {
-                    warn "READY : eEnqueueRequest ".$m->pid."\n";
+                    DEBUG  "READY : eEnqueueRequest ".$m->pid."\n";
+                    pass('... Queue->Ready : got enqueue request');
                     $m->context->{Q}->enqueue( $e );
                 },
                 eDequeueRequest => sub ($m, $e) {
                     my ($caller, $deferred) = $e->payload->@*;
-                    warn "READY : eDequeueRequest ".$m->pid."\n";
+                    DEBUG  "READY : eDequeueRequest ".$m->pid."\n";
+                    pass('... Queue->Ready : got dequeue request from '.$caller);
                     if ($m->context->{Q}->is_empty) {
                         $m->send_to(
                             $caller,
@@ -76,15 +120,16 @@ my $Queue = ELO::Machine->new(
         )
     ]
 );
-
+isa_ok($Queue, 'ELO::Machine');
 
 my $Main = ELO::Machine->new(
     name     => 'Main',
-    protocol => [],
+    protocol => ELO::Protocol->new,
     start    => ELO::Machine::State->new(
         name     => 'Init',
         entry    => sub ($m) {
-            warn "INIT : ".$m->pid."\n";
+            DEBUG  "INIT : ".$m->pid."\n";
+            pass('... Main->Init : entered Main machine');
             my $queue_pid = $m->container->spawn('Queue');
             $m->context->{id} = 0;
             $m->context->{queue_pid} = $queue_pid;
@@ -102,7 +147,8 @@ my $Main = ELO::Machine->new(
         ELO::Machine::State->new(
             name     => 'Pump',
             entry    => sub ($m) {
-                warn "PUMP : ".$m->pid."\n";
+                DEBUG  "PUMP : ".$m->pid."\n";
+                pass('... Main->Pump : sending 5 items to the queue');
                 $m->send_to(
                     $m->context->{queue_pid},
                     ELO::Machine::Event->new(
@@ -115,13 +161,18 @@ my $Main = ELO::Machine->new(
                         ]
                     )
                 ) foreach (1 .. 5);
+                $m->context->{num_consumed} = 0;
                 $m->GOTO('Consume');
             }
         ),
         ELO::Machine::State->new(
             name     => 'Consume',
             entry    => sub ($m) {
-                warn "CONSUME : ".$m->pid."\n";
+                DEBUG  "CONSUME : ".$m->pid."\n";
+                ok($m->context->{num_consumed} <= 5,
+                    '... Main->Consume : entering ... consumed ('
+                    .$m->context->{num_consumed}
+                    .') so far (max: 5)');
                 $m->send_to(
                     $m->context->{queue_pid},
                     ELO::Machine::Event->new(
@@ -132,36 +183,43 @@ my $Main = ELO::Machine->new(
             },
             handlers => {
                 eDequeueResponse => sub ($m, $e) {
-                    warn "CONSUMED : ".$m->pid."\n";
-                    warn Dumper $e;
+                    DEBUG  "CONSUMED : ".$m->pid."\n";
+                    $m->context->{num_consumed}++;
+                    pass('... Main->Consume : '
+                        .('nom ' x $m->context->{num_consumed}));
+                    #DEBUG  Dumper $e;
                     $m->GOTO('Consume');
                 }
             },
             on_error => {
                 E_EMPTY_QUEUE => sub ($m, $e) {
-                    warn "EMPTY QUEUE : ".$m->pid."\n";
-                    warn Dumper $e;
+                    DEBUG  "EMPTY QUEUE : ".$m->pid."\n";
+                    pass('... Main->Consume : queue is empty');
+                    #DEBUG  Dumper $e;
                     $m->GOTO('Pump');
                 }
             }
         ),
     ]
 );
+isa_ok($Main, 'ELO::Machine');
 
 my $IdsAreIncreasing = ELO::Machine->new(
     name     => 'IdsAreIncreasing',
-    protocol => [ $eDequeueResponse ],
+    protocol => ELO::Protocol->new( accepts => [ $eDequeueResponse ] ),
     start    => ELO::Machine::State->new(
         name     => 'CheckIds',
         entry    => sub ($m) {
-            warn "!!! MONITOR(".$m->pid.") ENTERING\n";
+            DEBUG  "!!! MONITOR(".$m->pid.") ENTERING\n";
+            pass('... Monitor->IdsAreIncreasing->CheckIds : entered monitor');
             $m->context->{last_id} = 0;
         },
         handlers => {
             eDequeueResponse => sub ($m, $e) {
-                warn "!!! MONITOR(".$m->pid.") GOT : eDequeueResponse => " . Dumper $e->payload->[0];
+                DEBUG  "!!! MONITOR(".$m->pid.") GOT : eDequeueResponse => id: " . $e->payload->[0]->payload->[0]->{id} ."\n";
                 my $id = $e->payload->[0]->payload->[0]->{id};
                 if ( $id > $m->context->{last_id} ) {
+                    pass('... Monitor->IdsAreIncreasing : The id is greater than the previous one');
                     $m->context->{last_id} = $id;
                 }
                 else {
@@ -174,11 +232,12 @@ my $IdsAreIncreasing = ELO::Machine->new(
         },
         on_error => {
             E_ID_IS_NOT_INCREASING => sub ($m, $s, $e) {
-                warn "!!! MONITOR(".$m->pid.") GOT: E_ID_IS_NOT_INCREASING => " . Dumper $e->payload->[0];
+                DEBUG  "!!! MONITOR(".$m->pid.") GOT: E_ID_IS_NOT_INCREASING => " . Dumper $e->payload->[0];
             }
         }
     )
 );
+isa_ok($IdsAreIncreasing, 'ELO::Machine');
 
 
 my $L = ELO::Container->new(
@@ -189,10 +248,12 @@ my $L = ELO::Container->new(
         $Queue
     ]
 );
+isa_ok($L, 'ELO::Container');
 
 ## manual testing ...
 
 $L->LOOP(20);
+pass('... Container : loop exited successfully');
 
 
 done_testing;

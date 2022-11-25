@@ -8,7 +8,9 @@ use Data::Dumper;
 use ELO::Machine;
 use ELO::Container::Message;
 
-use List::Util 'uniq';
+sub DEBUG ($msg) {
+    warn $msg,"\n" if $ENV{DEBUG_CONTAINER};
+}
 
 use parent 'UNIVERSAL::Object';
 use slots (
@@ -84,6 +86,8 @@ sub spawn ($self, $machine_name, %env) {
 
 sub START ($self) {
 
+    DEBUG '--(START)'.join('','-' x 68);
+
     # start all the monitors
     foreach my $monitor ($self->{monitors}->@*) {
         $monitor->assign_pid( $self->generate_new_pid( $monitor ) );
@@ -95,6 +99,7 @@ sub START ($self) {
     }
 
     $self->spawn( $self->{entry} );
+
 }
 
 sub STOP ($self) {
@@ -112,21 +117,24 @@ sub STOP ($self) {
     # clear the active machine table
     $self->{_monitor_table}->%* = ();
     $self->{_process_table}->%* = ();
+
+    DEBUG '--(STOP)'.join('','-' x 69);
 }
 
 sub TICK ($self) {
 
-    warn '--('.sprintf('%03d', $self->{_tick}).')'.join('','-' x 70)."\n";
+    DEBUG '--('.sprintf('%03d', $self->{_tick}).')'.join('','-' x 70);
 
     my @msgs = $self->{_message_bus}->@*;
     $self->{_message_bus}->@* = ();
+
+    #DEBUG "  : Found ".(scalar @msgs)." messages in the bus";
 
     if ( exists $self->{_alarms}->{ $self->{_tick} } ) {
         my $alarms = delete $self->{_alarms}->{ $self->{_tick} };
         push @msgs => @$alarms;
     }
 
-    my @machines_to_run;
     while (@msgs) {
         my $message = shift @msgs;
 
@@ -136,6 +144,8 @@ sub TICK ($self) {
                 $monitor->TICK;
             }
         }
+
+        #DEBUG "  : Delivering message (".$message->event->type->name.") to ".$message->to.", ... ".(scalar @msgs)." messages remaining";
 
         my $machine = $self->{_process_table}->{ $message->to };
         if ($machine) {
@@ -155,9 +165,13 @@ sub LOOP ($self, $MAX_TICKS) {
 
     $self->START;
 
+    DEBUG '--(READY)'.join('','-' x 68);
+
     while ($self->{_tick} <= $MAX_TICKS) {
         $self->TICK;
     }
+
+    DEBUG '--(EXITING)'.join('','-' x 66);
 
     $self->STOP;
 }
