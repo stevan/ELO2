@@ -1,3 +1,10 @@
+
+Cipy exampkes
+
+https://www.youtube.com/watch?v=hJIST1cEf6A&ab_channel=AbelardoPardo
+https://www.youtube.com/watch?v=4rNYAvsSkwk&ab_channel=justAlevel
+
+
 # Notes from C Runtime
 ## --------------------------------------------------------
 
