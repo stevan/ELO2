@@ -11,6 +11,7 @@ use Data::Dumper ();
 use parent 'UNIVERSAL::Object::Immutable';
 use slots (
     _deferred => sub { +{} },
+    _ignored  => sub { +{} },
     _inbox    => sub { +[] },
 );
 
@@ -32,6 +33,24 @@ sub defer ($self, $deferred) {
     $self;
 }
 
+sub ignore ($self, $ignored) {
+    Carp::confess('You must supply a ignored event-type set')
+        unless defined $ignored
+            && ref $ignored eq 'ARRAY';
+
+    my %ignored;
+    foreach ( @$ignored ) {
+        Carp::confess('The ignored event-types should be of type `ELO::Machine::Event::Type`')
+            unless Scalar::Util::blessed($_)
+                && $_->isa('ELO::Machine::Event::Type');
+        $ignored{ $_->name }++;
+    }
+
+    $self->{_ignored}->%* = %ignored;
+
+    $self;
+}
+
 sub size ($self) {
     scalar $self->{_inbox}->@*
 }
@@ -45,7 +64,8 @@ sub enqueue ($self, $e) {
         unless Scalar::Util::blessed($e)
             && $e->isa('ELO::Machine::Event');
 
-    push $self->{_inbox}->@* => $e;
+    push $self->{_inbox}->@* => $e
+        unless $self->{_ignored}->{ $e->type->name };
 
     $self;
 }

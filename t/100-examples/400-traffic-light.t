@@ -40,6 +40,7 @@ my $TrafficSignal = ELO::Machine->new(
     states => [
         ELO::Machine::State->new(
             name     => 'Green',
+            ignored  => [ $eSignalStart ],
             entry    => sub ($m) {
                 print GREEN('');
                 pass('... TrafficSignal->Green entered Green state');
@@ -59,6 +60,7 @@ my $TrafficSignal = ELO::Machine->new(
         ),
         ELO::Machine::State->new(
             name     => 'Yellow',
+            ignored  => [ $eSignalStart ],
             entry    => sub ($m) {
                 print YELLOW('');
                 pass('... TrafficSignal->Yellow entered Yellow state');
@@ -78,6 +80,7 @@ my $TrafficSignal = ELO::Machine->new(
         ),
         ELO::Machine::State->new(
             name     => 'Red',
+            ignored  => [ $eSignalStart ],
             entry    => sub ($m) {
                 print RED('');
                 pass('... TrafficSignal->Red entered Red state');
@@ -108,6 +111,10 @@ my $Main = ELO::Machine->new(
 
             my $light = $m->container->spawn('TrafficSignal', ( DELAY => 5 ));
 
+            $m->send_to(
+                $light,
+                ELO::Machine::Event->new( type => $eSignalStart )
+            );
             $m->send_to(
                 $light,
                 ELO::Machine::Event->new( type => $eSignalStart )

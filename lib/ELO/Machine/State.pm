@@ -19,6 +19,7 @@ use slots (
     exit        => sub {},       # the exit callback, called when a state is EXITed
     handlers    => sub { +{} },  # Hash<EventType, &> event handlers, keyed by event type
     deferred    => sub { +[] },  # Array<EventType> events that should be deferred in this state
+    ignored     => sub { +[] },  # Array<EventType> events that should be ignored in this state
     on_error    => sub { +{} },  # Hash<ErrorType, &> error handlers, keyed by error type
     temperature => sub { COLD }, # is this HOT or COLD
 );
@@ -31,6 +32,12 @@ sub BUILD ($self, $) {
         Carp::confess('The `deferred` values should be of type `ELO::Machine::Event::Type`')
             unless Scalar::Util::blessed($deferred)
                 && $deferred->isa('ELO::Machine::Event::Type');
+    }
+
+    foreach my $ignored ( $self->{ignored}->@* ) {
+        Carp::confess('The `ignored` values should be of type `ELO::Machine::Event::Type`')
+            unless Scalar::Util::blessed($ignored)
+                && $ignored->isa('ELO::Machine::Event::Type');
     }
 
     # QUESTION:
@@ -61,8 +68,10 @@ sub BUILD ($self, $) {
 
 sub name     ($self) { $self->{name}     }
 sub deferred ($self) { $self->{deferred} }
+sub ignored  ($self) { $self->{ignored}  }
 
 sub has_deferred ($self) { !! scalar $self->{deferred}->@* }
+sub has_ignored  ($self) { !! scalar $self->{ignored}->@*  }
 
 # temperature
 
