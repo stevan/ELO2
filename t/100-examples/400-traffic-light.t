@@ -12,10 +12,11 @@ use Term::ANSIColor qw[ :constants ];
 use ELO;
 
 my $eSignalStart   = ELO::Machine::Event::Type->new( name => 'eSignalStart'   );
+my $eSignalStop    = ELO::Machine::Event::Type->new( name => 'eSignalStop'    );
 my $eTimerFinished = ELO::Machine::Event::Type->new( name => 'eTimerFinished' );
 
 my $pTrafficSignal = ELO::Protocol->new(
-    accepts  => [ $eSignalStart ],
+    accepts  => [ $eSignalStart, $eSignalStop ],
     internal => ELO::Protocol->new(
         name    => 'TrafficSignalTimer',
         accepts => [ $eTimerFinished ]
@@ -27,6 +28,7 @@ my $TrafficSignal = ELO::Machine->new(
     protocol => $pTrafficSignal,
     start    => ELO::Machine::State->new(
         name     => 'Init',
+        ignored  => [ $eTimerFinished, $eSignalStop ],
         entry    => sub ($m) {
             pass('... TrafficSignal->Init initializing');
         },
@@ -41,6 +43,7 @@ my $TrafficSignal = ELO::Machine->new(
         ELO::Machine::State->new(
             name     => 'Green',
             ignored  => [ $eSignalStart ],
+            deferred => [ $eSignalStop  ],
             entry    => sub ($m) {
                 print GREEN('');
                 pass('... TrafficSignal->Green entered Green state');
@@ -61,6 +64,7 @@ my $TrafficSignal = ELO::Machine->new(
         ELO::Machine::State->new(
             name     => 'Yellow',
             ignored  => [ $eSignalStart ],
+            deferred => [ $eSignalStop  ],
             entry    => sub ($m) {
                 print YELLOW('');
                 pass('... TrafficSignal->Yellow entered Yellow state');
@@ -92,11 +96,23 @@ my $TrafficSignal = ELO::Machine->new(
             },
             exit => sub { print RESET },
             handlers => {
+                eSignalStop => sub ($m, $e) {
+                    pass('... TrafficSignal->Red got eSignalStop');
+                    $m->GOTO('Shutdown');
+                },
                 eTimerFinished => sub ($m, $e) {
                     pass('... TrafficSignal->Red timer finished');
                     $m->GOTO('Green');
                 }
             }
+        ),
+        ELO::Machine::State->new(
+            name     => 'Shutdown',
+            ignored  => [ $eSignalStart, $eTimerFinished ],
+            entry    => sub ($m) {
+                pass('... TrafficSignal->Shutdown entered');
+                $m->GOTO('Init');
+            },
         ),
     ]
 );
@@ -115,9 +131,26 @@ my $Main = ELO::Machine->new(
                 $light,
                 ELO::Machine::Event->new( type => $eSignalStart )
             );
-            $m->send_to(
-                $light,
+
+            # this is ignored ...
+            $m->send_to($light, ELO::Machine::Event->new( type => $eSignalStart ));
+
+            $m->set_alarm( 20, $light,
+                ELO::Machine::Event->new( type => $eSignalStop )
+            );
+
+            # this should be ignored
+            $m->set_alarm( 30, $light,
+                ELO::Machine::Event->new( type => $eSignalStop )
+            );
+
+            $m->set_alarm( 35, $light,
                 ELO::Machine::Event->new( type => $eSignalStart )
+            );
+
+            # this will end up ignoring the eTimerFinished internal event
+            $m->set_alarm( 64, $light,
+                ELO::Machine::Event->new( type => $eSignalStop )
             );
         }
     )
@@ -134,7 +167,7 @@ my $L = ELO::Container->new(
 
 ## manual testing ...
 
-$L->LOOP(50);
+$L->LOOP(70);
 
 
 done_testing;

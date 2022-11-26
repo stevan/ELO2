@@ -65,7 +65,7 @@ sub enqueue ($self, $e) {
             && $e->isa('ELO::Machine::Event');
 
     push $self->{_inbox}->@* => $e
-        unless $self->{_ignored}->{ $e->type->name };
+        unless exists $self->{_ignored}->{ $e->type->name };
 
     $self;
 }

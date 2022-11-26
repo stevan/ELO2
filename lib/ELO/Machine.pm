@@ -157,6 +157,7 @@ sub clear_active_state ($self) {
 sub set_active_state   ($self, $next_state) {
     $self->{_active} = $next_state;
     $self->{_queue}->defer( $self->{_active}->deferred );
+    $self->{_queue}->ignore( $self->{_active}->ignored  );
 }
 
 sub exit_active_state ($self) {
