@@ -1,5 +1,3 @@
-- Remove the Error and Error::Type they are not needed
-- Remove on_error, regular handler will do
 - Bless the different subs (entry, exit, handler) to different classes
     - these will define the following:
         - what control-exceptions they can raise
@@ -12,14 +10,6 @@
         - entry can raise and send
         - exit can send
         - handlers can raise, goto and send
-
-
-
-
-Cipy exampkes
-
-https://www.youtube.com/watch?v=hJIST1cEf6A&ab_channel=AbelardoPardo
-https://www.youtube.com/watch?v=4rNYAvsSkwk&ab_channel=justAlevel
 
 
 # Notes from C Runtime

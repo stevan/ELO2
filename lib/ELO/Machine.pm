@@ -223,11 +223,6 @@ sub is_process ($self) { $self->{_kind} == PROCESS }
 sub become_monitor ($self) { $self->{_kind} = MONITOR }
 sub become_process ($self) { $self->{_kind} = PROCESS }
 
-# context
-
-sub env     ($self) { $self->{_env} }
-sub context ($self) { $self->{_context} }
-
 # pid
 
 sub pid ($self) { $self->{_pid} }
@@ -243,6 +238,19 @@ sub container ($self) { $self->{_container} }
 sub attach_to_container ($self, $container) {
     $self->{_container} = $container; # FIXME: single assignment
 }
+
+## -------------------------
+## User Accessible Info
+## -------------------------
+
+# context
+
+sub env     ($self) { $self->{_env} }
+sub context ($self) { $self->{_context} }
+
+## -------------------------
+## User controls
+## -------------------------
 
 sub send_to ($self, $pid, $event) {
     # TODO : check that event is valid protocol output type
@@ -269,6 +277,18 @@ sub set_alarm ($self, $delay, $pid, $event) {
     );
 }
 
+sub GOTO ($self, $state_name) {
+    # NOTE:
+    # this resolves the state name within the trampoline
+    # instead of trying to do it here, the result is the
+    # same in the end.
+    ELO::Machine::Control::TransitionState->throw( goto => $state_name );
+}
+
+sub RAISE ($self, $event) {
+    ELO::Machine::Control::RaiseEvent->throw( event => $event );
+}
+
 ## ---------------------------------------------
 ## Machine controls
 ## ---------------------------------------------
@@ -279,18 +299,6 @@ sub set_alarm ($self, $delay, $pid, $event) {
 sub ACCEPT ($self, $e) {
     # TODO : check that event is valid protocol input type
     $self->enqueue_event( $e );
-}
-
-sub GOTO ($self, $state_name) {
-    # NOTE:
-    # this resolves the state name within the trampoline
-    # instead of trying to do it here, the result is the
-    # same in the end.
-    ELO::Machine::Control::TransitionState->throw( goto => $state_name );
-}
-
-sub RAISE ($self, $error) {
-    ELO::Machine::Control::RaiseEvent->throw( event => $error );
 }
 
 sub START ($self) {
