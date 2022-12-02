@@ -21,7 +21,6 @@ subtest '... basic state' => sub {
     ok(!$s->has_deferred, '... does not have deferred');
     ok(!$s->has_entry, '... does not have entry');
     ok(!$s->has_exit, '... does not have exit');
-    ok(!$s->has_error_handlers, '... does not have error_handlers');
     ok(!$s->has_handlers, '... does not have handlers');
 };
 
@@ -30,7 +29,7 @@ subtest '... basic state' => sub {
     my $eSkip         = ELO::Machine::Event::Type->new( name => 'eSkip' );
     my $eFoo          = ELO::Machine::Event::Type->new( name => 'eFoo' );
     my $eBar          = ELO::Machine::Event::Type->new( name => 'eBar' );
-    my $E_INVALID_FOO = ELO::Machine::Error::Type->new( name => 'E_INVALID_FOO' );
+    my $E_INVALID_FOO = ELO::Machine::Event::Type->new( name => 'E_INVALID_FOO' );
 
     my %args = (
         name     => 'Init',
@@ -40,8 +39,7 @@ subtest '... basic state' => sub {
         handlers => {
             eBar => sub ($m, $e) {},
             eFoo => sub ($m, $e) {},
-        },
-        on_error => {
+            # errors ...
             E_INVALID_FOO => sub ($m, $e) {},
         }
     );
@@ -62,7 +60,6 @@ subtest '... basic state' => sub {
     ok($s->has_exit, '... does have exit');
     is($s->exit, $args{exit}, '... got the same exit code ref');
 
-    ok($s->has_error_handlers, '... does have error_handlers');
     ok($s->has_handlers, '... does have handlers');
 
     is($s->event_handler_for( ELO::Machine::Event->new( type => $eBar ) ),
@@ -73,8 +70,8 @@ subtest '... basic state' => sub {
         $args{handlers}->{eFoo},
         '... got the right code ref for eFoo');
 
-    is($s->event_handler_for( ELO::Machine::Error->new( type => $E_INVALID_FOO ) ),
-        $args{on_error}->{E_INVALID_FOO},
+    is($s->event_handler_for( ELO::Machine::Event->new( type => $E_INVALID_FOO ) ),
+        $args{handlers}->{E_INVALID_FOO},
         '... got the right code ref for E_INVALID_FOO');
 };
 

@@ -11,6 +11,10 @@ use Term::ANSIColor qw[ :constants ];
 
 use ELO;
 
+sub DEBUG ($msg) {
+    warn $msg if $ENV{DEBUG};
+}
+
 my $eSignalStart   = ELO::Machine::Event::Type->new( name => 'eSignalStart'   );
 my $eSignalStop    = ELO::Machine::Event::Type->new( name => 'eSignalStop'    );
 my $eTimerFinished = ELO::Machine::Event::Type->new( name => 'eTimerFinished' );
@@ -45,7 +49,7 @@ my $TrafficSignal = ELO::Machine->new(
             ignored  => [ $eSignalStart ],
             deferred => [ $eSignalStop  ],
             entry    => sub ($m) {
-                print GREEN('');
+                #print GREEN('');
                 pass('... TrafficSignal->Green entered Green state');
                 $m->set_alarm(
                     $m->env->{DELAY},
@@ -53,7 +57,7 @@ my $TrafficSignal = ELO::Machine->new(
                     ELO::Machine::Event->new( type => $eTimerFinished ),
                 );
             },
-            exit => sub { print RESET },
+            #exit => sub { print RESET },
             handlers => {
                 eTimerFinished => sub ($m, $e) {
                     pass('... TrafficSignal->Green timer finished');
@@ -66,7 +70,7 @@ my $TrafficSignal = ELO::Machine->new(
             ignored  => [ $eSignalStart ],
             deferred => [ $eSignalStop  ],
             entry    => sub ($m) {
-                print YELLOW('');
+                #print YELLOW('');
                 pass('... TrafficSignal->Yellow entered Yellow state');
                 $m->set_alarm(
                     $m->env->{DELAY},
@@ -74,7 +78,7 @@ my $TrafficSignal = ELO::Machine->new(
                     ELO::Machine::Event->new( type => $eTimerFinished ),
                 );
             },
-            exit => sub { print RESET },
+            #exit => sub { print RESET },
             handlers => {
                 eTimerFinished => sub ($m, $e) {
                     pass('... TrafficSignal->Yellow timer finished');
@@ -86,7 +90,7 @@ my $TrafficSignal = ELO::Machine->new(
             name     => 'Red',
             ignored  => [ $eSignalStart ],
             entry    => sub ($m) {
-                print RED('');
+                #print RED('');
                 pass('... TrafficSignal->Red entered Red state');
                 $m->set_alarm(
                     $m->env->{DELAY},
@@ -94,7 +98,7 @@ my $TrafficSignal = ELO::Machine->new(
                     ELO::Machine::Event->new( type => $eTimerFinished ),
                 );
             },
-            exit => sub { print RESET },
+            #exit => sub { print RESET },
             handlers => {
                 eSignalStop => sub ($m, $e) {
                     pass('... TrafficSignal->Red got eSignalStop');

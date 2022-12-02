@@ -9,6 +9,10 @@ use Test::More;
 
 use ELO;
 
+sub DEBUG ($msg) {
+    warn $msg if $ENV{DEBUG};
+}
+
 ## Event Types
 
 my $eRequest  = ELO::Machine::Event::Type->new( name => 'eRequest'  );
@@ -61,8 +65,7 @@ protocol WEB_SERVER {
 }
 
 protocol WEB_CLIENT {
-    use SERVICE_REGISTRY;
-    use WEB_SERVER;
+    uses SERVICE_REGISTRY, WEB_SERVER;
 
     type eRequest  = ( method : HTTP_Method, url  : Uri );
     type eResponse = ( status : HTTP_Status, body : Str );
@@ -115,7 +118,7 @@ my $ServiceRegistry = ELO::Machine->new(
         handlers => {
             eServiceLookupRequest => sub ($m, $e) {
                 my ($requestor, $service_name) = $e->payload->@*;
-                warn "LOCATOR(".$m->pid.") GOT: eServiceLookupRequest: " . Dumper [$requestor, $service_name];
+                DEBUG "LOCATOR(".$m->pid.") GOT: eServiceLookupRequest: " . Dumper [$requestor, $service_name];
                 $m->send_to(
                     $requestor => ELO::Machine::Event->new(
                         type    => $eServiceLookupResponse,
@@ -143,7 +146,7 @@ my $Server = ELO::Machine->new(
             handlers => {
                 eConnectionRequest => sub ($m, $e) {
                     my ($client, $request) = $e->payload->@*;
-                    warn "SERVER(".$m->pid.") GOT: eConnectionRequest: " . Dumper [$client, $request];
+                    DEBUG "SERVER(".$m->pid.") GOT: eConnectionRequest: " . Dumper [$client, $request];
 
                     $m->context->{stats}->{counter}++;
 
@@ -188,7 +191,7 @@ my $Client = ELO::Machine->new(
             deferred => [ $eResponse ],
             handlers => {
                 eRequest => sub ($m, $e) {
-                    warn "CLIENT(".$m->pid.") GOT: eRequest  : >> " . join(' ', $e->payload->@*) . "\n";
+                    DEBUG "CLIENT(".$m->pid.") GOT: eRequest  : >> " . join(' ', $e->payload->@*) . "\n";
 
                     my ($method, $url ) = $e->payload->@*;
                     my ($server, $path) = ($url =~ /^\/\/([a-z.]+)(.*)$/);
@@ -201,10 +204,10 @@ my $Client = ELO::Machine->new(
                         $path
                     ];
 
-                    #warn Dumper $m->env->{service_lookup_cache};
+                    #DEBUG Dumper $m->env->{service_lookup_cache};
 
                     if ( exists $m->env->{service_lookup_cache}->{$server} ) {
-                        warn "CLIENT(".$m->pid.") CACHE: using service-lookup-cache for ($server)\n";
+                        DEBUG "CLIENT(".$m->pid.") CACHE: using service-lookup-cache for ($server)\n";
                         my $server_pid = $m->env->{service_lookup_cache}->{$server};
                         $m->context->{server_pid} = $server_pid;
                         $m->GOTO('SendConnectionRequest');
@@ -219,7 +222,7 @@ my $Client = ELO::Machine->new(
             name     => 'SendLookupRequest',
             deferred => [ $eRequest, $eResponse ],
             entry    => sub ($m) {
-                warn "CLIENT(".$m->pid.") SENDING: eServiceLookupRequest to ".$m->env->{registry}."\n";
+                DEBUG "CLIENT(".$m->pid.") SENDING: eServiceLookupRequest to ".$m->env->{registry}."\n";
                 $m->send_to(
                     $m->env->{registry},
                     ELO::Machine::Event->new(
@@ -230,7 +233,7 @@ my $Client = ELO::Machine->new(
             },
             handlers => {
                 eServiceLookupResponse => sub ($m, $e) {
-                    warn "CLIENT(".$m->pid.") GOT: eServiceLookupResponse  : >> " . join(' ', $e->payload->@*) . "\n";
+                    DEBUG "CLIENT(".$m->pid.") GOT: eServiceLookupResponse  : >> " . join(' ', $e->payload->@*) . "\n";
                     my ($server_pid) = $e->payload->@*;
                     $m->context->{server_pid} = $server_pid;
                     $m->env->{service_lookup_cache}->{ $m->context->{server} } = $server_pid;
@@ -242,7 +245,7 @@ my $Client = ELO::Machine->new(
             name     => 'SendConnectionRequest',
             deferred => [ $eRequest ],
             entry    => sub ($m) {
-                warn "CLIENT(".$m->pid.") SENDING: eConnectionRequest to ".$m->context->{server_pid}."\n";
+                DEBUG "CLIENT(".$m->pid.") SENDING: eConnectionRequest to ".$m->context->{server_pid}."\n";
                 $m->send_to(
                     $m->context->{server_pid},
                     ELO::Machine::Event->new(
@@ -256,7 +259,7 @@ my $Client = ELO::Machine->new(
             },
             handlers => {
                 eResponse => sub ($m, $e) {
-                    warn "CLIENT(".$m->pid.") GOT: eResponse : << " . join(' ', $e->payload->@*) . "\n";
+                    DEBUG "CLIENT(".$m->pid.") GOT: eResponse : << " . join(' ', $e->payload->@*) . "\n";
                     $m->GOTO('WaitingForRequest');
                 }
             }
@@ -273,30 +276,34 @@ my $AllRequestAreSatisfied = ELO::Machine->new(
             $m->context->{seen_requests} = {};
         },
         exit     => sub ($m) {
-            warn ">>> MONITOR(".$m->pid.") has pending requests!!" . Dumper $m->context->{seen_requests}
-                unless (scalar keys $m->context->{seen_requests}->%*) == 0;
+            if ((scalar keys $m->context->{seen_requests}->%*) == 0) {
+                pass('... AllRequestAreSatisfied exited OK');
+            }
+            else {
+                fail('... AllRequestAreSatisfied exited ERROR');
+                diag ">>> MONITOR(".$m->pid.") has pending requests!!" . Dumper $m->context->{seen_requests};
+            }
         },
         handlers => {
             eConnectionRequest => sub ($m, $e) {
                 my $request_id = $e->payload->[1]->[0];
-                warn ">>> MONITOR(".$m->pid.") GOT: eConnectionRequest id: $request_id\n";
+                DEBUG ">>> MONITOR(".$m->pid.") GOT: eConnectionRequest id: $request_id\n";
                 $m->context->{seen_requests}->{ $request_id }++;
                 $m->RAISE(
-                    ELO::Machine::Error->new(
-                        type    => ELO::Machine::Error::Type->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
+                    ELO::Machine::Event->new(
+                        type    => ELO::Machine::Event::Type->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
                         payload => [ keys $m->context->{seen_requests}->%* ],
                     )
                 ) if (scalar keys $m->context->{seen_requests}->%*) > 2;
             },
             eResponse => sub ($m, $e) {
                 my $request_id = $e->payload->[0];
-                warn ">>> MONITOR(".$m->pid.") GOT: eResponse request-id: $request_id\n";
+                DEBUG ">>> MONITOR(".$m->pid.") GOT: eResponse request-id: $request_id\n";
                 delete $m->context->{seen_requests}->{ $request_id };
             },
-        },
-        on_error => {
+            # errors ...
             E_MORE_THAN_TWO_REQUESTS_PENDING => sub ($m, $e) {
-                warn "!!! MONITOR(".$m->pid.") GOT: E_MORE_THAN_TWO_REQUESTS_PENDING => " . Dumper $e->payload;
+                DEBUG "!!! MONITOR(".$m->pid.") GOT: E_MORE_THAN_TWO_REQUESTS_PENDING => " . Dumper $e->payload;
             }
         }
     )
@@ -425,7 +432,6 @@ my $L = ELO::Container->new(
 ## manual testing ...
 
 $L->LOOP( 20 ); # 11 leaves us with a pending response
-
 
 done_testing;
 

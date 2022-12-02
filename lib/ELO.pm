@@ -5,9 +5,6 @@ use warnings;
 use ELO::Machine::Event;
 use ELO::Machine::Event::Type;
 
-use ELO::Machine::Error;
-use ELO::Machine::Error::Type;
-
 use ELO::Protocol;
 
 use ELO::Machine;

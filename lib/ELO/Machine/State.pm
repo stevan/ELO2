@@ -20,7 +20,6 @@ use slots (
     handlers    => sub { +{} },  # Hash<EventType, &> event handlers, keyed by event type
     deferred    => sub { +[] },  # Array<EventType> events that should be deferred in this state
     ignored     => sub { +[] },  # Array<EventType> events that should be ignored in this state
-    on_error    => sub { +{} },  # Hash<ErrorType, &> error handlers, keyed by error type
     temperature => sub { COLD }, # is this HOT or COLD
 );
 
@@ -42,9 +41,8 @@ sub BUILD ($self, $) {
 
     # QUESTION:
     # Should I bless the various CODE handlers
-    # {entry, exit, on_error & handlers} into
-    # a class so the trampoline knows what to
-    # do?
+    # {entry, exit & handlers} into a class
+    # so the trampoline knows what to do?
 
     # QUESTION:
     # Should I Lock all these values, so we can be
@@ -61,7 +59,6 @@ sub BUILD ($self, $) {
     # Internals::SvREADONLY( $self->{name}, 1 );
     # Hash::Util::lock_hash( $self->{handlers}->%* );
     # Internals::SvREADONLY( $self->{deferred}->@*, 1 );
-    # Hash::Util::lock_hash( $self->{on_error}->%* );
 }
 
 # some accessors
@@ -86,18 +83,12 @@ sub has_exit  ($self) { !! $self->{exit}  }
 sub entry ($self) { $self->{entry} }
 sub exit  ($self) { $self->{exit}  }
 
-sub has_error_handlers ($self) { !! scalar keys $self->{on_error}->%* }
-sub has_handlers       ($self) { !! scalar keys $self->{handlers}->%* }
+sub has_handlers ($self) { !! scalar keys $self->{handlers}->%* }
 
 sub event_handler_for ($self, $e) {
     my $e_name = $e->type->name;
 
-    if ($e->isa('ELO::Machine::Error')) {
-        if (exists $self->{on_error}->{ $e_name }) {
-            return $self->{on_error}->{ $e_name };
-        }
-    }
-    elsif (exists $self->{handlers}->{ $e_name }) {
+    if (exists $self->{handlers}->{ $e_name }) {
         return $self->{handlers}->{ $e_name };
     }
     else {

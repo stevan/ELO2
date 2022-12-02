@@ -127,8 +127,8 @@ subtest '... basic queue' => sub {
 
     my $eDequeueResponse = ELO::Machine::Event::Type->new( name => 'eDequeueResponse' );
 
-    my $E_EMPTY_QUEUE = ELO::Machine::Error::Type->new( name => 'E_EMPTY_QUEUE' );
-    my $E_FULL_QUEUE  = ELO::Machine::Error::Type->new( name => 'E_FULL_QUEUE' );
+    my $E_EMPTY_QUEUE = ELO::Machine::Event::Type->new( name => 'E_EMPTY_QUEUE' );
+    my $E_FULL_QUEUE  = ELO::Machine::Event::Type->new( name => 'E_FULL_QUEUE' );
 
     # request/response pattern for de-queue
     # and throws specific erros

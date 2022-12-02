@@ -20,8 +20,8 @@ my $eDequeueRequest = ELO::Machine::Event::Type->new( name => 'eDequeueRequest' 
 
 my $eDequeueResponse = ELO::Machine::Event::Type->new( name => 'eDequeueResponse' );
 
-my $E_EMPTY_QUEUE = ELO::Machine::Error::Type->new( name => 'E_EMPTY_QUEUE' );
-my $E_FULL_QUEUE  = ELO::Machine::Error::Type->new( name => 'E_FULL_QUEUE' );
+my $E_EMPTY_QUEUE = ELO::Machine::Event::Type->new( name => 'E_EMPTY_QUEUE' );
+my $E_FULL_QUEUE  = ELO::Machine::Event::Type->new( name => 'E_FULL_QUEUE' );
 
 ## Protocols
 
@@ -102,7 +102,7 @@ my $Queue = ELO::Machine->new(
                     if ($m->context->{Q}->is_empty) {
                         $m->send_to(
                             $caller,
-                            ELO::Machine::Error->new( type => $E_EMPTY_QUEUE )
+                            ELO::Machine::Event->new( type => $E_EMPTY_QUEUE )
                         );
                         $m->GOTO('Empty');
                     }
@@ -189,9 +189,8 @@ my $Main = ELO::Machine->new(
                         .('nom ' x $m->context->{num_consumed}));
                     #DEBUG  Dumper $e;
                     $m->GOTO('Consume');
-                }
-            },
-            on_error => {
+                },
+                # errors ...
                 E_EMPTY_QUEUE => sub ($m, $e) {
                     DEBUG  "EMPTY QUEUE : ".$m->pid."\n";
                     pass('... Main->Consume : queue is empty');
@@ -223,14 +222,13 @@ my $IdsAreIncreasing = ELO::Machine->new(
                     $m->context->{last_id} = $id;
                 }
                 else {
-                    die ELO::Machine::Error->new(
-                        type    => ELO::Machine::Error::Type->new( name => 'E_ID_IS_NOT_INCREASING' ),
+                    die ELO::Machine::Event->new(
+                        type    => ELO::Machine::Event::Type->new( name => 'E_ID_IS_NOT_INCREASING' ),
                         payload => [ { last_id => $m->context->{last_id}, id => $id } ],
                     );
                 }
-            }
-        },
-        on_error => {
+            },
+            # errors ...
             E_ID_IS_NOT_INCREASING => sub ($m, $s, $e) {
                 DEBUG  "!!! MONITOR(".$m->pid.") GOT: E_ID_IS_NOT_INCREASING => " . Dumper $e->payload->[0];
             }

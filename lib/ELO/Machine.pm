@@ -9,7 +9,6 @@ use List::Util   ();
 use Data::Dumper ();
 
 use ELO::Machine::Event;
-use ELO::Machine::Error;
 use ELO::Machine::EventQueue;
 
 use ELO::Machine::Control::TransitionState;

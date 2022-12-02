@@ -1,3 +1,20 @@
+- Remove the Error and Error::Type they are not needed
+- Remove on_error, regular handler will do
+- Bless the different subs (entry, exit, handler) to different classes
+    - these will define the following:
+        - what control-exceptions they can raise
+        - what syntax to localize for them
+    - the syntax is basically
+        - go_to($state)
+        - raise($event)
+        - send_to($pid, $event)
+    - for example:
+        - entry can raise and send
+        - exit can send
+        - handlers can raise, goto and send
+
+
+
 
 Cipy exampkes
 

@@ -9,6 +9,10 @@ use Test::More;
 
 use ELO;
 
+sub DEBUG ($msg) {
+    warn $msg if $ENV{DEBUG};
+}
+
 my $eBeginBounce  = ELO::Machine::Event::Type->new( name => 'eBeginBounce' );
 my $eFinishBounce = ELO::Machine::Event::Type->new( name => 'eFinishBounce' );
 
@@ -21,7 +25,7 @@ my $Bounce = ELO::Machine->new(
     start    => ELO::Machine::State->new(
         name     => 'Init',
         entry    => sub ($m) {
-            warn $m->pid." : INIT\n";
+            DEBUG $m->pid." : INIT\n";
         },
         handlers => {
             eBeginBounce => sub ($m, $e) {
@@ -29,7 +33,7 @@ my $Bounce = ELO::Machine->new(
                 $m->context->{bounces} = $e->payload->[1];
                 $m->context->{height}  = $e->payload->[2];
 
-                warn $m->pid." : eBeginBounce (".(join ", " =>
+                DEBUG $m->pid." : eBeginBounce (".(join ", " =>
                     $m->context->{caller},
                     $m->context->{bounces},
                     $m->context->{height})
@@ -46,11 +50,11 @@ my $Bounce = ELO::Machine->new(
         ELO::Machine::State->new(
             name     => 'Up',
             entry    => sub ($m) {
-                warn $m->pid." : UP entering\n";
+                DEBUG $m->pid." : UP entering\n";
             },
             handlers => {
                 eBounceUp => sub ($m, $e) {
-                    warn $m->pid." : UP handling -> eBounceUp\n";
+                    DEBUG $m->pid." : UP handling -> eBounceUp\n";
                     $m->set_alarm(
                         $m->context->{height} => (
                             $m->pid,
@@ -64,11 +68,11 @@ my $Bounce = ELO::Machine->new(
         ELO::Machine::State->new(
             name     => 'Down',
             entry    => sub ($m) {
-                warn $m->pid." : DOWN entering\n";
+                DEBUG $m->pid." : DOWN entering\n";
             },
             handlers => {
                 eBounceDown => sub ($m, $e) {
-                    warn $m->pid." : DOWN handling -> eBounceDown (".$m->context->{bounces}.")\n";
+                    DEBUG $m->pid." : DOWN handling -> eBounceDown (".$m->context->{bounces}.")\n";
                     $m->context->{bounces}--;
                     if ( $m->context->{bounces} > 0 ) {
                         $m->set_alarm(
@@ -88,7 +92,7 @@ my $Bounce = ELO::Machine->new(
         ELO::Machine::State->new(
             name     => 'Finish',
             entry    => sub ($m) {
-                warn $m->pid." : FINISH\n";
+                DEBUG $m->pid." : FINISH\n";
                 $m->send_to(
                     $m->context->{caller},
                     ELO::Machine::Event->new( type => $eFinishBounce )
@@ -104,12 +108,12 @@ my $Main = ELO::Machine->new(
     start    => ELO::Machine::State->new(
         name     => 'Init',
         entry    => sub ($m) {
-            warn $m->pid." : INIT\n";
+            DEBUG $m->pid." : INIT\n";
 
             my $bounce_001 = $m->container->spawn('Bounce');
             my $bounce_002 = $m->container->spawn('Bounce');
 
-            warn $m->pid . " : Bounce Begin\n";
+            DEBUG $m->pid . " : Bounce Begin\n";
 
             $m->send_to(
                 $bounce_001,
@@ -129,7 +133,8 @@ my $Main = ELO::Machine->new(
         },
         handlers => {
             eFinishBounce => sub ($m, $e) {
-                warn $m->pid . " : Bounce Finished\n";
+                DEBUG $m->pid . " : Bounce Finished\n";
+                pass('... Main -> Init -> bounce finished');
             }
         }
     )
