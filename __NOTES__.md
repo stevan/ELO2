@@ -91,7 +91,7 @@ package MACHINE {
     has $.start;
     has @.states;
 
-    sub CLONE;
+    sub ACTIVATE;
 
     sub ACCEPT;
     sub START;
@@ -101,7 +101,7 @@ package MACHINE {
     sub EXIT;
 }
 
-package MACHINE::HANDLE {
+package MACHINE::ACTIVATION {
     sub pid;
 
     sub ENV;

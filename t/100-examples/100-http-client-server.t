@@ -137,7 +137,7 @@ my $Server = ELO::Machine->new(
         name  => 'Init',
         entry => sub ($m) {
             $m->context->{stats} = { counter => 0 };
-            $m->GOTO('WaitingForConnectionRequest');
+            $m->go_to('WaitingForConnectionRequest');
         }
     ),
     states => [
@@ -182,7 +182,7 @@ my $Client = ELO::Machine->new(
         name  => 'Init',
         entry => sub ($m) {
             $m->env->{service_lookup_cache} = +{};
-            $m->GOTO('WaitingForRequest');
+            $m->go_to('WaitingForRequest');
         }
     ),
     states => [
@@ -210,10 +210,10 @@ my $Client = ELO::Machine->new(
                         DEBUG "CLIENT(".$m->pid.") CACHE: using service-lookup-cache for ($server)\n";
                         my $server_pid = $m->env->{service_lookup_cache}->{$server};
                         $m->context->{server_pid} = $server_pid;
-                        $m->GOTO('SendConnectionRequest');
+                        $m->go_to('SendConnectionRequest');
                     }
                     else {
-                        $m->GOTO('SendLookupRequest');
+                        $m->go_to('SendLookupRequest');
                     }
                 }
             }
@@ -237,7 +237,7 @@ my $Client = ELO::Machine->new(
                     my ($server_pid) = $e->payload->@*;
                     $m->context->{server_pid} = $server_pid;
                     $m->env->{service_lookup_cache}->{ $m->context->{server} } = $server_pid;
-                    $m->GOTO('SendConnectionRequest');
+                    $m->go_to('SendConnectionRequest');
                 }
             }
         ),
@@ -260,7 +260,7 @@ my $Client = ELO::Machine->new(
             handlers => {
                 eResponse => sub ($m, $e) {
                     DEBUG "CLIENT(".$m->pid.") GOT: eResponse : << " . join(' ', $e->payload->@*) . "\n";
-                    $m->GOTO('WaitingForRequest');
+                    $m->go_to('WaitingForRequest');
                 }
             }
         )
@@ -291,7 +291,7 @@ my $AllRequestAreSatisfied = ELO::Machine->new(
                 my $request_id = $e->payload->[1]->[0];
                 DEBUG ">>> MONITOR(".$m->pid.") GOT: eConnectionRequest id: $request_id\n";
                 $m->context->{seen_requests}->{ $request_id }++;
-                $m->RAISE(
+                $m->raise(
                     ELO::Machine::Event->new(
                         type    => ELO::Machine::Event::Type->new( name => 'E_MORE_THAN_TWO_REQUESTS_PENDING' ),
                         payload => [ keys $m->context->{seen_requests}->%* ],
@@ -320,23 +320,21 @@ my $Main = ELO::Machine->new(
         name  => 'Init',
         entry => sub ($m) {
 
-            my $container = $m->container;
-
-            my $server001_pid = $container->spawn('WebService' => ( endpoints => {
+            my $server001_pid = $m->spawn('WebService' => ( endpoints => {
                 '/'    => [ 200, 'OK  .oO( ~ )' ],
                 '/foo' => [ 300, '>>> .oO(foo)' ],
                 '/bar' => [ 404, ':-| .oO(bar)' ],
                 '/baz' => [ 500, ':-O .oO(baz)' ],
             }));
 
-            my $server002_pid = $container->spawn('WebService' => ( endpoints => {
+            my $server002_pid = $m->spawn('WebService' => ( endpoints => {
                 '/'    => [ 200, 'OK  .oO( ~ )' ],
                 '/foo' => [ 300, '>>> .oO(foo)' ],
                 '/bar' => [ 404, ':-| .oO(bar)' ],
                 '/baz' => [ 500, ':-O .oO(baz)' ],
             }));
 
-            my $service_registry_pid = $container->spawn('ServiceRegistry' => (
+            my $service_registry_pid = $m->spawn('ServiceRegistry' => (
                 registry => {
                     'server.one' => $server001_pid,
                     'server.two' => $server002_pid,
@@ -348,17 +346,17 @@ my $Main = ELO::Machine->new(
                 sprintf 'req:%d' => ++$current_request_id;
             }
 
-            my $client001_pid = $container->spawn('WebClient' => (
+            my $client001_pid = $m->spawn('WebClient' => (
                 registry        => $service_registry_pid,
                 next_request_id => \&request_id_generator,
             ));
 
-            my $client002_pid = $container->spawn('WebClient' => (
+            my $client002_pid = $m->spawn('WebClient' => (
                 registry        => $service_registry_pid,
                 next_request_id => \&request_id_generator,
             ));
 
-            my $client003_pid = $container->spawn('WebClient' => (
+            my $client003_pid = $m->spawn('WebClient' => (
                 registry        => $service_registry_pid,
                 next_request_id => \&request_id_generator,
             ));
@@ -369,7 +367,7 @@ my $Main = ELO::Machine->new(
                 $client003_pid
             ];
 
-            $m->GOTO('Pump');
+            $m->go_to('Pump');
         },
     ),
     states => [

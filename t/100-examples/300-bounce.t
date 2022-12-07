@@ -42,7 +42,7 @@ my $Bounce = ELO::Machine->new(
                 $m->set_alarm( $m->context->{height} => (
                     $m->pid, ELO::Machine::Event->new( type => $eBounceUp )
                 ));
-                $m->GOTO('Up');
+                $m->go_to('Up');
             }
         }
     ),
@@ -61,7 +61,7 @@ my $Bounce = ELO::Machine->new(
                             ELO::Machine::Event->new( type => $eBounceDown )
                         )
                     );
-                    $m->GOTO('Down');
+                    $m->go_to('Down');
                 }
             }
         ),
@@ -81,10 +81,10 @@ my $Bounce = ELO::Machine->new(
                                 ELO::Machine::Event->new( type => $eBounceUp )
                             )
                         );
-                        $m->GOTO('Up');
+                        $m->go_to('Up');
                     }
                     else {
-                        $m->GOTO('Finish');
+                        $m->go_to('Finish');
                     }
                 }
             }
@@ -110,8 +110,8 @@ my $Main = ELO::Machine->new(
         entry    => sub ($m) {
             DEBUG $m->pid." : INIT\n";
 
-            my $bounce_001 = $m->container->spawn('Bounce');
-            my $bounce_002 = $m->container->spawn('Bounce');
+            my $bounce_001 = $m->spawn('Bounce');
+            my $bounce_002 = $m->spawn('Bounce');
 
             DEBUG $m->pid . " : Bounce Begin\n";
 

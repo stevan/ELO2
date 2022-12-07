@@ -39,7 +39,7 @@ my $TrafficSignal = ELO::Machine->new(
         handlers => {
             eSignalStart => sub ($m, $e) {
                 pass('... TrafficSignal->Init got eSignalStart');
-                $m->GOTO('Green');
+                $m->go_to('Green');
             }
         }
     ),
@@ -61,7 +61,7 @@ my $TrafficSignal = ELO::Machine->new(
             handlers => {
                 eTimerFinished => sub ($m, $e) {
                     pass('... TrafficSignal->Green timer finished');
-                    $m->GOTO('Yellow');
+                    $m->go_to('Yellow');
                 }
             }
         ),
@@ -82,7 +82,7 @@ my $TrafficSignal = ELO::Machine->new(
             handlers => {
                 eTimerFinished => sub ($m, $e) {
                     pass('... TrafficSignal->Yellow timer finished');
-                    $m->GOTO('Red');
+                    $m->go_to('Red');
                 }
             }
         ),
@@ -102,11 +102,11 @@ my $TrafficSignal = ELO::Machine->new(
             handlers => {
                 eSignalStop => sub ($m, $e) {
                     pass('... TrafficSignal->Red got eSignalStop');
-                    $m->GOTO('Shutdown');
+                    $m->go_to('Shutdown');
                 },
                 eTimerFinished => sub ($m, $e) {
                     pass('... TrafficSignal->Red timer finished');
-                    $m->GOTO('Green');
+                    $m->go_to('Green');
                 }
             }
         ),
@@ -115,7 +115,7 @@ my $TrafficSignal = ELO::Machine->new(
             ignored  => [ $eSignalStart, $eTimerFinished ],
             entry    => sub ($m) {
                 pass('... TrafficSignal->Shutdown entered');
-                $m->GOTO('Init');
+                $m->go_to('Init');
             },
         ),
     ]
@@ -129,7 +129,7 @@ my $Main = ELO::Machine->new(
         entry    => sub ($m) {
             pass('... Main->Init entering');
 
-            my $light = $m->container->spawn('TrafficSignal', ( DELAY => 5 ));
+            my $light = $m->spawn('TrafficSignal', ( DELAY => 5 ));
 
             $m->send_to(
                 $light,

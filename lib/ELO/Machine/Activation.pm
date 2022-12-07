@@ -28,9 +28,9 @@ sub BUILD ($self, $) {
     $self->{machine}->attach_activation( $self );
 }
 
-sub machine ($self) { $self->{machine} }
-
 sub name ($self) { $self->{machine}->name }
+
+sub machine ($self) { $self->{machine} }
 
 # machine type
 
@@ -85,7 +85,13 @@ sub set_alarm ($self, $delay, $pid, $event) {
     );
 }
 
-sub GOTO ($self, $state_name) {
+sub spawn ($self, @args) {
+    $self->container->spawn( @args )
+}
+
+# controls
+
+sub go_to ($self, $state_name) {
     # NOTE:
     # this resolves the state name within the trampoline
     # instead of trying to do it here, the result is the
@@ -93,11 +99,13 @@ sub GOTO ($self, $state_name) {
     ELO::Machine::Control::TransitionState->throw( goto => $state_name );
 }
 
-sub RAISE ($self, $event) {
+sub raise ($self, $event) {
     ELO::Machine::Control::RaiseEvent->throw( event => $event );
 }
 
-## API
+## --------------------------------------------------------
+## Delegate to Machine API
+## --------------------------------------------------------
 
 sub ACCEPT ($self, $e) {
     $self->machine->ACCEPT( $e );

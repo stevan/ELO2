@@ -63,7 +63,7 @@ my $Queue = ELO::Machine->new(
             DEBUG  "INIT : entry ".$m->pid."\n";
             pass('... Queue->Init : entered Queue machine');
             $m->context->{Q} = ELO::Machine::EventQueue->new;
-            $m->GOTO('Empty');
+            $m->go_to('Empty');
         }
     ),
     states => [
@@ -79,7 +79,7 @@ my $Queue = ELO::Machine->new(
                     DEBUG  "EMPTY : eEnqueueRequest ".$m->pid."\n";
                     pass('... Queue->Empty : got enqueue request');
                     $m->context->{Q}->enqueue( $e );
-                    $m->GOTO('Ready');
+                    $m->go_to('Ready');
                 }
             }
         ),
@@ -104,7 +104,7 @@ my $Queue = ELO::Machine->new(
                             $caller,
                             ELO::Machine::Event->new( type => $E_EMPTY_QUEUE )
                         );
-                        $m->GOTO('Empty');
+                        $m->go_to('Empty');
                     }
                     else {
                         $m->send_to(
@@ -130,7 +130,7 @@ my $Main = ELO::Machine->new(
         entry    => sub ($m) {
             DEBUG  "INIT : ".$m->pid."\n";
             pass('... Main->Init : entered Main machine');
-            my $queue_pid = $m->container->spawn('Queue');
+            my $queue_pid = $m->spawn('Queue');
             $m->context->{id} = 0;
             $m->context->{queue_pid} = $queue_pid;
             $m->send_to(
@@ -140,7 +140,7 @@ my $Main = ELO::Machine->new(
                     payload => [ $m->pid ]
                 )
             );
-            $m->GOTO('Pump');
+            $m->go_to('Pump');
         }
     ),
     states => [
@@ -162,7 +162,7 @@ my $Main = ELO::Machine->new(
                     )
                 ) foreach (1 .. 5);
                 $m->context->{num_consumed} = 0;
-                $m->GOTO('Consume');
+                $m->go_to('Consume');
             }
         ),
         ELO::Machine::State->new(
@@ -188,14 +188,14 @@ my $Main = ELO::Machine->new(
                     pass('... Main->Consume : '
                         .('nom ' x $m->context->{num_consumed}));
                     #DEBUG  Dumper $e;
-                    $m->GOTO('Consume');
+                    $m->go_to('Consume');
                 },
                 # errors ...
                 E_EMPTY_QUEUE => sub ($m, $e) {
                     DEBUG  "EMPTY QUEUE : ".$m->pid."\n";
                     pass('... Main->Consume : queue is empty');
                     #DEBUG  Dumper $e;
-                    $m->GOTO('Pump');
+                    $m->go_to('Pump');
                 }
             }
         ),
@@ -222,9 +222,11 @@ my $IdsAreIncreasing = ELO::Machine->new(
                     $m->context->{last_id} = $id;
                 }
                 else {
-                    die ELO::Machine::Event->new(
-                        type    => ELO::Machine::Event::Type->new( name => 'E_ID_IS_NOT_INCREASING' ),
-                        payload => [ { last_id => $m->context->{last_id}, id => $id } ],
+                    $m->raise(
+                        ELO::Machine::Event->new(
+                            type    => ELO::Machine::Event::Type->new( name => 'E_ID_IS_NOT_INCREASING' ),
+                            payload => [ { last_id => $m->context->{last_id}, id => $id } ],
+                        )
                     );
                 }
             },
