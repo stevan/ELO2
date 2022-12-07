@@ -30,6 +30,8 @@ sub BUILD ($self, $) {
 
 sub machine ($self) { $self->{machine} }
 
+sub name ($self) { $self->{machine}->name }
+
 # machine type
 
 sub kind ($self) { $self->{_kind} }
@@ -98,7 +100,7 @@ sub RAISE ($self, $event) {
 ## API
 
 sub ACCEPT ($self, $e) {
-    $self->machine->enqueue_event( $e );
+    $self->machine->ACCEPT( $e );
 }
 
 sub TICK ($self) {

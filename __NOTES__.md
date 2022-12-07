@@ -1,8 +1,5 @@
-- Name changes
-    - should Machine `CLONE` be `FORK`?
 
 - Revive `ProcessRecord` object
-    - change it to be Machine::Active or something similar
     - it will provide the user with sensible API for accessing machine data
         - the syntax is basically
             - go_to($state)

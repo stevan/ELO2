@@ -8,6 +8,8 @@ use Scalar::Util ();
 use List::Util   ();
 use Data::Dumper ();
 
+use ELO::Machine::Activation;
+
 use ELO::Machine::Event;
 use ELO::Machine::EventQueue;
 
@@ -34,7 +36,7 @@ use slots (
     _queue   => sub {},  # the event queue
     _status  => sub {},  # the various machine status
     _active  => sub {},  # the currently active state
-    _self    => sub {},  # the current Machine::Activation object
+    _this    => sub {},  # the current Machine::Activation object
 );
 
 sub BUILD ($self, $params) {
@@ -52,13 +54,23 @@ sub BUILD ($self, $params) {
 
 # duplicate ones self
 
-sub CLONE ($self) {
-    ELO::Machine->new(
-        name     => $self->{name},
-        protocol => $self->{protocol},
-        start    => $self->{start},
-        states   => [ $self->{states}->@* ],
+sub ACTIVATE ($self) {
+    ELO::Machine::Activation->new(
+        machine => ELO::Machine->new(
+            name     => $self->{name},
+            protocol => $self->{protocol},
+            start    => $self->{start},
+            states   => [ $self->{states}->@* ],
+        )
     )
+}
+
+# machine activation
+
+sub activation ($self) { $self->{_this} }
+
+sub attach_activation ($self, $activation) {
+    $self->{_this} = $activation;
 }
 
 # name
@@ -112,7 +124,7 @@ sub all_states ($self) { ($self->{start}, $self->{states}->@*) }
 
 sub trampoline ($self, $f, $args, %options) {
     eval {
-        $f->($self, @$args);
+        $f->($self->{_this}, @$args);
         1;
     } or do {
         my $e = $@;
@@ -200,39 +212,6 @@ sub handle_event ($self, $e) {
         Carp::confess("DROPPED EVENT!" . Data::Dumper::Dumper($e));
     }
 }
-
-# machine activation
-
-sub activation ($self) { $self->{_self} }
-
-sub attach_activation ($self, $activation) {
-    $self->{_self} = $activation;
-}
-
-# this will be removed
-
-sub env       ($self) { $self->activation->env       }
-sub context   ($self) { $self->activation->context   }
-sub pid       ($self) { $self->activation->pid       }
-sub container ($self) { $self->activation->container }
-
-sub send_to ($self, $pid, $e) {
-    $self->activation->send_to( $pid, $e )
-}
-
-sub set_alarm ($self, $delay, $pid, $e) {
-    $self->activation->set_alarm( $delay, $pid, $e )
-}
-
-sub GOTO ($self, $state_name) {
-    $self->activation->GOTO($state_name)
-}
-
-sub RAISE ($self, $event) {
-    $self->activation->RAISE($event)
-}
-
-# END this will be removed
 
 ## ---------------------------------------------
 ## Machine controls

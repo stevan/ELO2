@@ -6,7 +6,6 @@ use experimental 'signatures', 'postderef';
 use Data::Dumper;
 
 use ELO::Machine;
-use ELO::Machine::Activation;
 use ELO::Container::Message;
 
 sub DEBUG ($msg) {
@@ -35,13 +34,6 @@ sub BUILD ($self, $) {
     foreach my $machine ($self->{machines}->@*) {
         $self->{_machine_map}->{ $machine->name } = $machine;
     }
-
-    foreach my $monitor ($self->{monitors}->@*) {
-        foreach my $event ( $monitor->protocol->all_types ) {
-            $self->{_monitored_events}->{ $event->name } //= [];
-            push $self->{_monitored_events}->{ $event->name }->@* => $monitor;
-        }
-    }
 }
 
 sub generate_new_pid ($self, $machine) {
@@ -67,10 +59,9 @@ sub set_alarm ($self, $delay, $message) {
 # processes
 
 sub spawn ($self, $machine_name, %env) {
-    my $machine = $self->{_machine_map}->{ $machine_name }->CLONE;
-    my $activation = ELO::Machine::Activation->new( machine => $machine );
+    my $activation = $self->{_machine_map}->{ $machine_name }->ACTIVATE;
 
-    $activation->assign_pid( $self->generate_new_pid( $machine ) );
+    $activation->assign_pid( $self->generate_new_pid( $activation ) );
     $activation->become_process;
     $self->{_process_table}->{ $activation->pid } = $activation;
 
@@ -92,10 +83,15 @@ sub START ($self) {
 
     # start all the monitors
     foreach my $monitor ($self->{monitors}->@*) {
-        my $activation = ELO::Machine::Activation->new( machine => $monitor );
-        $activation->assign_pid( $self->generate_new_pid( $monitor ) );
+        my $activation = $monitor->ACTIVATE;
+        $activation->assign_pid( $self->generate_new_pid( $activation ) );
         $self->{_monitor_table}->{ $activation->pid } = $activation;
         $activation->become_monitor;
+
+        foreach my $event ( $monitor->protocol->all_types ) {
+            $self->{_monitored_events}->{ $event->name } //= [];
+            push $self->{_monitored_events}->{ $event->name }->@* => $activation;
+        }
 
         $activation->attach_to_container( $self );
         $activation->START;

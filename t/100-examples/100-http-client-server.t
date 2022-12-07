@@ -273,6 +273,7 @@ my $AllRequestAreSatisfied = ELO::Machine->new(
     start    => ELO::Machine::State->new(
         name     => 'CheckRequests',
         entry    => sub ($m) {
+            pass('... AllRequestAreSatisfied entered OK');
             $m->context->{seen_requests} = {};
         },
         exit     => sub ($m) {
@@ -286,6 +287,7 @@ my $AllRequestAreSatisfied = ELO::Machine->new(
         },
         handlers => {
             eConnectionRequest => sub ($m, $e) {
+                pass('... AllRequestAreSatisfied got eConnectionRequest OK');
                 my $request_id = $e->payload->[1]->[0];
                 DEBUG ">>> MONITOR(".$m->pid.") GOT: eConnectionRequest id: $request_id\n";
                 $m->context->{seen_requests}->{ $request_id }++;
@@ -297,12 +299,14 @@ my $AllRequestAreSatisfied = ELO::Machine->new(
                 ) if (scalar keys $m->context->{seen_requests}->%*) > 2;
             },
             eResponse => sub ($m, $e) {
+                pass('... AllRequestAreSatisfied got eResponse OK');
                 my $request_id = $e->payload->[0];
                 DEBUG ">>> MONITOR(".$m->pid.") GOT: eResponse request-id: $request_id\n";
                 delete $m->context->{seen_requests}->{ $request_id };
             },
             # errors ...
             E_MORE_THAN_TWO_REQUESTS_PENDING => sub ($m, $e) {
+                pass('... AllRequestAreSatisfied got E_MORE_THAN_TWO_REQUESTS_PENDING OK');
                 DEBUG "!!! MONITOR(".$m->pid.") GOT: E_MORE_THAN_TWO_REQUESTS_PENDING => " . Dumper $e->payload;
             }
         }
