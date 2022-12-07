@@ -10,7 +10,7 @@ use slots (
     name     => sub {},
     pair     => sub {},
     accepts  => sub {},
-    throws   => sub {},
+    raises   => sub {},
     internal => sub {},
     uses     => sub {},
 );
@@ -37,10 +37,10 @@ sub input_types ($self) {
 # in the states where they are used
 
 sub output_types ($self) {
-    # the second element of pair + all throws
+    # the second element of pair + all raises
     List::Util::uniq(
         ($self->{pair}   ? $self->{pair}->[1]                         : ()),
-        ($self->{throws} ? $self->{throws}->@*                        : ()),
+        ($self->{raises} ? $self->{raises}->@*                        : ()),
         ($self->{uses}   ? map { $_->output_types } $self->{uses}->@* : ()),
     )
 }
@@ -69,13 +69,13 @@ sub accepts ($self) {
     $self->{accepts};
 }
 
-sub throws ($self) {
+sub raises ($self) {
     # errors that can be thrown
     # --
     #
     # these are basically output events, but that should
     # always be errors
-    $self->{throws};
+    $self->{raises};
 }
 
 sub internal ($self) {

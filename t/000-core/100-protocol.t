@@ -131,7 +131,7 @@ subtest '... basic queue' => sub {
     my $E_FULL_QUEUE  = ELO::Machine::Event::Type->new( name => 'E_FULL_QUEUE' );
 
     # request/response pattern for de-queue
-    # and throws specific erros
+    # and raises specific erros
 
     my $pDequeue = ELO::Protocol->new(
         name => 'Dequeue',
@@ -139,7 +139,7 @@ subtest '... basic queue' => sub {
             $eDequeueRequest,
             $eDequeueResponse
         ],
-        throws => [ $E_EMPTY_QUEUE ]
+        raises => [ $E_EMPTY_QUEUE ]
     );
     isa_ok($pDequeue, 'ELO::Protocol');
 
@@ -150,7 +150,7 @@ subtest '... basic queue' => sub {
     my $pEnqueue = ELO::Protocol->new(
         name    => 'Enqueue',
         accepts => [ $eEnqueueRequest ],
-        throws  => [ $E_FULL_QUEUE ]
+        raises  => [ $E_FULL_QUEUE ]
     );
     isa_ok($pEnqueue, 'ELO::Protocol');
 

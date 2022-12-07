@@ -11,12 +11,6 @@ use Data::Dumper ();
 use ELO::Machine::Event;
 use ELO::Machine::EventQueue;
 
-use ELO::Machine::Control::TransitionState;
-use ELO::Machine::Control::RaiseEvent;
-
-use constant PROCESS => 1; # this machine is being used as a process
-use constant MONITOR => 2; # this machine is being used as a monitor
-
 use constant BUILDING => 1; # when the object is being built
 use constant BUILT    => 2; # when the object has been built, but not started
 
@@ -37,15 +31,10 @@ use slots (
     start    => sub {},      # the start state of the machine
     states   => sub { +[] }, # the other states of this machine
     # ...
-    _queue     => sub {},  # the event queue
-    _status    => sub {},  # the various machine status
-    _active    => sub {},  # the currently active state
-    # ...
-    _kind      => sub {},      # is a process or monitor?
-    _pid       => sub {},      # an externally supplied identifier for this machine instance
-    _env       => sub { +{} }, # immutable env settings for the machine
-    _context   => sub { +{} }, # mutable context for the machine
-    _container => sub {},      # the associated container
+    _queue   => sub {},  # the event queue
+    _status  => sub {},  # the various machine status
+    _active  => sub {},  # the currently active state
+    _self    => sub {},  # the current Machine::Activation object
 );
 
 sub BUILD ($self, $params) {
@@ -212,82 +201,38 @@ sub handle_event ($self, $e) {
     }
 }
 
-# machine type
+# machine activation
 
-sub kind ($self) { $self->{_kind} }
+sub activation ($self) { $self->{_self} }
 
-sub is_monitor ($self) { $self->{_kind} == MONITOR }
-sub is_process ($self) { $self->{_kind} == PROCESS }
-
-# FIXME: these should be single assignment
-sub become_monitor ($self) { $self->{_kind} = MONITOR }
-sub become_process ($self) { $self->{_kind} = PROCESS }
-
-# pid
-
-sub pid ($self) { $self->{_pid} }
-
-sub assign_pid ($self, $pid) {
-    $self->{_pid} = $pid; # FIXME: single assignment
+sub attach_activation ($self, $activation) {
+    $self->{_self} = $activation;
 }
 
-# container
+# this will be removed
 
-sub container ($self) { $self->{_container} }
+sub env       ($self) { $self->activation->env       }
+sub context   ($self) { $self->activation->context   }
+sub pid       ($self) { $self->activation->pid       }
+sub container ($self) { $self->activation->container }
 
-sub attach_to_container ($self, $container) {
-    $self->{_container} = $container; # FIXME: single assignment
+sub send_to ($self, $pid, $e) {
+    $self->activation->send_to( $pid, $e )
 }
 
-## -------------------------
-## User Accessible Info
-## -------------------------
-
-# context
-
-sub env     ($self) { $self->{_env} }
-sub context ($self) { $self->{_context} }
-
-## -------------------------
-## User controls
-## -------------------------
-
-sub send_to ($self, $pid, $event) {
-    # TODO : check that event is valid protocol output type
-    $self->container->enqueue_message(
-        # FIXME: move ELO::Container::* usage to Container level
-        ELO::Container::Message->new(
-            to    => $pid,
-            event => $event,
-            from  => $self->pid,
-        )
-    );
-}
-
-sub set_alarm ($self, $delay, $pid, $event) {
-    # TODO : check that event is valid protocol output type
-    $self->container->set_alarm(
-        $delay,
-        # FIXME: move ELO::Container::* usage to Container level
-        ELO::Container::Message->new(
-            to    => $pid,
-            event => $event,
-            from  => $self->pid,
-        )
-    );
+sub set_alarm ($self, $delay, $pid, $e) {
+    $self->activation->set_alarm( $delay, $pid, $e )
 }
 
 sub GOTO ($self, $state_name) {
-    # NOTE:
-    # this resolves the state name within the trampoline
-    # instead of trying to do it here, the result is the
-    # same in the end.
-    ELO::Machine::Control::TransitionState->throw( goto => $state_name );
+    $self->activation->GOTO($state_name)
 }
 
 sub RAISE ($self, $event) {
-    ELO::Machine::Control::RaiseEvent->throw( event => $event );
+    $self->activation->RAISE($event)
 }
+
+# END this will be removed
 
 ## ---------------------------------------------
 ## Machine controls

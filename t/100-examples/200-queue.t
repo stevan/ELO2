@@ -32,7 +32,7 @@ my $pDequeue = ELO::Protocol->new(
         $eDequeueRequest,
         $eDequeueResponse
     ],
-    throws => [ $E_EMPTY_QUEUE ]
+    raises => [ $E_EMPTY_QUEUE ]
 );
 
 # while enquee is just an accepted message
@@ -42,7 +42,7 @@ my $pDequeue = ELO::Protocol->new(
 my $pEnqueue = ELO::Protocol->new(
     name    => 'Enqueue',
     accepts => [ $eEnqueueRequest ],
-    throws  => [ $E_FULL_QUEUE ]
+    raises  => [ $E_FULL_QUEUE ]
 );
 
 # the Queue protocol is a union of both of these

@@ -6,6 +6,7 @@ use experimental 'signatures', 'postderef';
 use Data::Dumper;
 
 use ELO::Machine;
+use ELO::Machine::Activation;
 use ELO::Container::Message;
 
 sub DEBUG ($msg) {
@@ -67,19 +68,20 @@ sub set_alarm ($self, $delay, $message) {
 
 sub spawn ($self, $machine_name, %env) {
     my $machine = $self->{_machine_map}->{ $machine_name }->CLONE;
+    my $activation = ELO::Machine::Activation->new( machine => $machine );
 
-    $machine->assign_pid( $self->generate_new_pid( $machine ) );
-    $machine->become_process;
-    $self->{_process_table}->{ $machine->pid } = $machine;
+    $activation->assign_pid( $self->generate_new_pid( $machine ) );
+    $activation->become_process;
+    $self->{_process_table}->{ $activation->pid } = $activation;
 
     foreach my $k ( keys %env ) {
-        $machine->env->{ $k } = $env{ $k };
+        $activation->env->{ $k } = $env{ $k };
     }
 
-    $machine->attach_to_container( $self );
-    $machine->START;
+    $activation->attach_to_container( $self );
+    $activation->START;
 
-    return $machine->pid;
+    return $activation->pid;
 }
 
 # controls
@@ -90,12 +92,13 @@ sub START ($self) {
 
     # start all the monitors
     foreach my $monitor ($self->{monitors}->@*) {
-        $monitor->assign_pid( $self->generate_new_pid( $monitor ) );
-        $self->{_monitor_table}->{ $monitor->pid } = $monitor;
-        $monitor->become_monitor;
+        my $activation = ELO::Machine::Activation->new( machine => $monitor );
+        $activation->assign_pid( $self->generate_new_pid( $monitor ) );
+        $self->{_monitor_table}->{ $activation->pid } = $activation;
+        $activation->become_monitor;
 
-        $monitor->attach_to_container( $self );
-        $monitor->START;
+        $activation->attach_to_container( $self );
+        $activation->START;
     }
 
     $self->spawn( $self->{entry} );
