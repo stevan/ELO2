@@ -24,10 +24,6 @@ use slots (
     _container => sub {},      # the associated container
 );
 
-sub BUILD ($self, $) {
-    $self->{machine}->attach_activation( $self );
-}
-
 sub name ($self) { $self->{machine}->name }
 
 sub machine ($self) { $self->{machine} }

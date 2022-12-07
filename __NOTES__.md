@@ -1,15 +1,4 @@
 
-- Revive `ProcessRecord` object
-    - it will provide the user with sensible API for accessing machine data
-        - the syntax is basically
-            - go_to($state)
-            - raise($event)
-            - send_to($pid, $event)
-            - spawn($machine, ?@flags, %env)
-            - exit( ?$event )
-    - should also know some meta info
-        - parent PID
-
 - Bless the different subs (entry, exit, handler) to different classes
     - these will define the following:
         - what control-exceptions they can raise
@@ -98,22 +87,22 @@ package MACHINE {
     sub STOP;
     sub TICK;
 
-    sub EXIT;
+    sub EXIT; # TODO
 }
 
 package MACHINE::ACTIVATION {
     sub pid;
 
-    sub ENV;
+    sub env;
 
-    sub goto;
+    sub go_to;
     sub raise;
 
-    sub send;
+    sub send_to;
 
     sub spawn;
 
-    sub exit;
+    sub exit; # TODO
 }
 
 

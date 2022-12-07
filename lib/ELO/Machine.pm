@@ -8,10 +8,9 @@ use Scalar::Util ();
 use List::Util   ();
 use Data::Dumper ();
 
-use ELO::Machine::Activation;
-
 use ELO::Machine::Event;
 use ELO::Machine::EventQueue;
+use ELO::Machine::Activation;
 
 use constant BUILDING => 1; # when the object is being built
 use constant BUILT    => 2; # when the object has been built, but not started
@@ -36,7 +35,7 @@ use slots (
     _queue   => sub {},  # the event queue
     _status  => sub {},  # the various machine status
     _active  => sub {},  # the currently active state
-    _this    => sub {},  # the current Machine::Activation object
+    _topic   => sub {},  # the current Machine::Activation object
 );
 
 sub BUILD ($self, $params) {
@@ -55,22 +54,23 @@ sub BUILD ($self, $params) {
 # duplicate ones self
 
 sub ACTIVATE ($self) {
-    ELO::Machine::Activation->new(
-        machine => ELO::Machine->new(
-            name     => $self->{name},
-            protocol => $self->{protocol},
-            start    => $self->{start},
-            states   => [ $self->{states}->@* ],
-        )
-    )
-}
 
-# machine activation
+    # clone the machine so we start fresh ...
+    my $machine = ELO::Machine->new(
+        name     => $self->{name},
+        protocol => $self->{protocol},
+        start    => $self->{start},
+        states   => [ $self->{states}->@* ],
+    );
 
-sub activation ($self) { $self->{_this} }
+    # then create an activation as the topic
+    # for this state machine ...
+    $machine->{_topic} = ELO::Machine::Activation->new(
+        machine => $machine
+    );
 
-sub attach_activation ($self, $activation) {
-    $self->{_this} = $activation;
+    # return the activation ...`
+    return $machine->{_topic};
 }
 
 # name
@@ -124,7 +124,7 @@ sub all_states ($self) { ($self->{start}, $self->{states}->@*) }
 
 sub trampoline ($self, $f, $args, %options) {
     eval {
-        $f->($self->{_this}, @$args);
+        $f->($self->{_topic}, @$args);
         1;
     } or do {
         my $e = $@;
@@ -153,6 +153,7 @@ sub has_active_state   ($self) { !! $self->{_active}         }
 sub clear_active_state ($self) {
     $self->{_active} = undef;
     $self->{_queue}->defer([]);
+    $self->{_queue}->ignore([]);
 }
 sub set_active_state   ($self, $next_state) {
     $self->{_active} = $next_state;
