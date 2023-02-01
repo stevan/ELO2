@@ -25,52 +25,51 @@ my $eServiceLookupResponse = ELO::Machine::Event::Type->new( name => 'eServiceLo
 
 =pod
 
-protocol SERVICE_REGISTRY {
-    type eServiceLookupRequest  = ( caller : PID, name : Str );
-    type eServiceLookupResponse = ( address : PID );
+protocol SERVICE_REGISTRY => sub {
+    type eServiceLookupRequest  => { caller => PID, name => Str };
+    type eServiceLookupResponse => { address => PID };
 
-    pair eServiceLookupRequest, eServiceLookupResponse;
-}
+    pair qw[ eServiceLookupRequest eServiceLookupResponse ];
+};
 
-machine ServiceRegistry : SERVICE_REGISTRY {
-    state WaitingForLookupRequest {
-        on eServiceLookupRequest ($requestor, $service_name) {
-            send_to $requestor =>
-                $eServiceLookupResponse->new_event([
-                    env->{registry}->{ $service_name }
-                ])
+machine ServiceRegistry => sub :public :protocol(SERVICE_REGISTRY) {
+    state WaitingForLookupRequest => sub :start {
+        on eServiceLookupRequest => sub ($requestor, $service_name) {
+            send_to $requestor, event eServiceLookupResponse => {
+                address =>  env->{registry}->{ $service_name }
+            };
         }
     }
 }
 
-protocol WEB_SERVER {
-    type eConnectionRequest  = (
-        caller  : PID,
-        request : (
-            id     : Int,
-            method : HTTP_Method,
-            url    : Uri
-        )
-    );
+protocol WEB_SERVER => sub {
+    type eConnectionRequest => {
+        caller  => PID,
+        request => {
+            id     => Int,
+            method => HTTP_Method,
+            url    => Uri
+        }
+    };
 
-    type eConnectionResponse = (
-        id       : Int,
-        response : (
-            status : HTTP_Status,
-            body   : Str
-        )
-    );
+    type eConnectionResponse => {
+        id       => Int,
+        response => {
+            status => HTTP_Status,
+            body   => Str
+        }
+    };
 
-    pair eConnectionRequest, eConnectionResponse;
+    pair qw[ eConnectionRequest eConnectionResponse ];
 }
 
-protocol WEB_CLIENT {
-    uses SERVICE_REGISTRY, WEB_SERVER;
+protocol WEB_CLIENT => sub {
+    uses qw[ SERVICE_REGISTRY WEB_SERVER ];
 
-    type eRequest  = ( method : HTTP_Method, url  : Uri );
-    type eResponse = ( status : HTTP_Status, body : Str );
+    type eRequest  => { method => HTTP_Method, url  => Uri };
+    type eResponse => { status => HTTP_Status, body => Str };
 
-    pair eRequest, eResponse;
+    pair qw[ eRequest eResponse ];
 }
 
 =cut
@@ -129,6 +128,31 @@ my $ServiceRegistry = ELO::Machine->new(
         }
     )
 );
+
+=pod
+
+machine WebService => sub :public :protocol(WEB_SERVER) {
+
+    has stats => sub { +{} };
+
+    state Init => sub :start {
+        entry sub :goes_to(WaitingForConnectionRequest) {
+            # reset the stats counter ...
+            $this->stats->{counter} = 0;
+        };
+    };
+
+    state WaitingForConnectionRequest => sub {
+        on eConnectionRequest => sub ($client, $request) {
+            my $response = { ... };
+            $this->send_to $client, event eResponse => $response;
+            $this->stats->{counter}++;
+        }
+    };
+
+};
+
+=cut
 
 my $Server = ELO::Machine->new(
     name     => 'WebService',

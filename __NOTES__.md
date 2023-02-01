@@ -1,5 +1,7 @@
 
 - Bless the different subs (entry, exit, handler) to different classes
+    NOTE: This is clever, but the current version works and is
+          likely a lot faster than this would be.
     - these will define the following:
         - what control-exceptions they can raise
         - what syntax to localize for them
@@ -7,6 +9,24 @@
         - entry can raise, goto and send
         - exit can send
         - handlers can raise, goto and send
+
+
+- Event::Type should define the payload for Event
+    - this should be a type constraint
+    - and maybe a constructor as well??
+
+- improve annotation of States
+    - HOT/COLD is not enought
+    - States can be ...
+        - ENTRY    -> this state is the entry state
+        - TERMINAL -> this state can only exit
+    - States that have context
+        - HOT/COLD  -> being in a HOT state is bad, COLD is good
+        - PASS/FAIL -> for regexp like states that have pass/fail
+    - States should also annotate transitions
+        - GOES_TO(@states) -> this can transition to these states
+            - GOES_TO($self) is implied
+
 
 - create set of flags for events that Machine can send like
     - flags would be:
@@ -31,22 +51,6 @@
             - because local data is required in the payloads
     - this should create a sub-protocol
         - and inject it into it's own machine protocol
-
-- Event::Type should define the payload for Event
-    - this should be a type constraint
-    - and maybe a constructor as well??
-
-- improve annotation of States
-    - HOT/COLD is not enought
-    - States can be ...
-        - ENTRY    -> this state is the entry state
-        - TERMINAL -> this state can only exit
-    - States that have context
-        - HOT/COLD  -> being in a HOT state is bad, COLD is good
-        - PASS/FAIL -> for regexp like states that have pass/fail
-    - States should also annotate transitions
-        - GOES_TO(@states) -> this can transition to these states
-            - GOES_TO($self) is implied
 
 - Removals??
     - remove the Monitors, they seem less useful
