@@ -1,4 +1,142 @@
+use v5.24;
+use warnings;
+use experimental 'signatures', 'postderef', 'lexical_subs';
 
+use Data::Dumper;
+
+use constant PID => 'PID';
+use constant Str => 'Str';
+
+sub type     ($name, $spec) {}
+sub accepts  (@events)      {}
+sub raises   (@errors)      {}
+sub pair     ($in, $out)    {}
+sub uses     (@protocols)   {}
+sub internal (@protocols)   {}
+
+sub protocol ($body) :prototype(&) {
+
+    my $protocol = {
+        types    => [],
+        accepts  => [],
+        raises   => [],
+        pair     => [],
+        uses     => [],
+        internal => [],
+    };
+
+    no strict 'refs';
+    no warnings 'redefine';
+
+    local *type = sub ($name, $spec) {
+        push $protocol->{types}->@* => {
+            name => $name,
+            spec => $spec,
+        };
+    };
+
+    local *raises   = sub (@errors)    { push $protocol->{raises}->@*  => @errors    };
+    local *accepts  = sub (@events)    { push $protocol->{accepts}->@* => @events    };
+    local *uses     = sub (@protocols) { push $protocol->{uses}->@*    => @protocols };
+    local *internal = sub (@protocols) { push $protocol->{accepts}->@* => @protocols };
+
+    local *pair = sub ($in, $out) {
+        push $protocol->{pair}->@* => {
+            in  => $in,
+            out => $out
+        };
+    };
+
+    $body->();
+
+    return $protocol;
+}
+
+sub on_entry ($body) :prototype(&) {}
+sub on_exit  ($exit) :prototype(&) {}
+sub on       ($event, $handler)    {}
+sub defer    (@deferred)           {}
+sub ignore   (@ignored)            {}
+
+sub start ($name, @args) {
+
+    my $body = pop @args;
+
+    my $state = {
+        name     => $name,
+        entry    => undef,
+        exit     => undef,
+        deferred => [],
+        handlers => [],
+        args     => \@args,
+    };
+
+    no strict 'refs';
+    no warnings 'redefine';
+
+    local *on = sub ($event, $handler) {
+        push $state->{handlers}->@* => {
+            event   => $event,
+            handler => $handler,
+        };
+    };
+
+    local *defer = sub (@deferred) {
+        push $state->{deferred}->@* => @deferred;
+    };
+
+    local *ignore = sub (@ignored) {
+        push $state->{ignored}->@* => @ignored;
+    };
+
+    local *entry = sub ($body) { $state->{entry} = $body };
+    local *exit  = sub ($body) { $state->{exit}  = $body };
+
+    $body->();
+
+    return $state;
+}
+
+warn Dumper(
+
+protocol {
+    type eServiceLookupRequest  => { caller => PID, name => Str };
+    type eServiceLookupResponse => { address => PID };
+
+    type E_SERVICE_NOT_FOUND => { name => Str };
+
+    raises 'E_SERVICE_NOT_FOUND';
+
+    pair 'eServiceLookupRequest', 'eServiceLookupResponse';
+}
+
+);
+
+
+warn Dumper(
+
+ WaitingForLookupRequest => sub {
+
+    on eServiceLookupRequest => sub ($m, $caller, $name) {
+
+        my $service = $m->{registry}->{ $name };
+
+        $m->throw(
+            E_SERVICE_NOT_FOUND => { name => $name }
+        ) unless $service;
+
+        $m->send_to($caller,
+            eServiceLookupResponse => {
+                address => $service
+            }
+        );
+    }
+}
+
+
+);
+
+=pod
 
 # Protocols ...
 
@@ -53,6 +191,52 @@ protocol CLIENT {
 }
 
 # Machines ...
+
+package ServiceRegistry {
+    use v5.24;
+    use warnings;
+
+    use parent 'UNIVERSAL::Object';
+    use slots (
+        registry => sub {},
+        start    => sub { 'ServiceRegistry::WaitingForLookupRequest' },
+        states   => sub { +[] },
+        # ...
+        _active => sub { +{} },
+    );
+
+    sub BUILD ($self, $) {
+        push $self->{_active}->@* => $self->{start}->new( machine => $self );
+
+        push $self->{_active}->@* => $_->new( machine => $self )
+            foreach $self->{states}->@*;
+    }
+}
+
+package ServiceRegistry::WaitingForLookupRequest {
+    use v5.24;
+    use warnings;
+
+    use parent 'UNIVERSAL::Object';
+    use slots (
+        machine => sub {}
+    );
+
+    sub eServiceLookupRequest ($self, $caller, $name) {
+
+        my $service = $self->{machine}->{registry}->{ $name };
+
+        $self->{machine}->throw(
+            E_SERVICE_NOT_FOUND => { name => $name }
+        ) unless $service;
+
+        $self->{machine}->send_to($caller,
+            event eServiceLookupResponse => {
+                address => $service
+            }
+        );
+    }
+}
 
 machine ServiceRegistry (%registry) : SERVICE_REGISTRY {
 
